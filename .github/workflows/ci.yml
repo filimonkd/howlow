@@ -70,6 +70,11 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
+      # Type-aware lint rules and the architecture test resolve types across
+      # workspaces, so the declarations have to exist first.
+      - name: Build workspace types
+        run: npm run build:types
+
       - name: Lint (includes architecture boundary rules)
         run: npm run lint
 
