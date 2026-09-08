@@ -1,0 +1,27 @@
+{
+  "name": "@howlow/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "HOWLOW website — React 19 + Vite client of the single HOWLOW backend",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --build tsconfig.build.json && vite build",
+    "preview": "vite preview",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@howlow/shared": "*",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^5.2.0",
+    "tailwindcss": "^4.3.3",
+    "vite": "^7.3.6"
+  }
+}

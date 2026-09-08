@@ -1,0 +1,13 @@
+# Default owner for everything in the repository.
+*                                   @filimonkd
+
+# Architecture-critical paths. Changes here alter platform-wide invariants and
+# always need an explicit review.
+/eslint.config.js                   @filimonkd
+/.github/                           @filimonkd
+/docker-compose.yml                 @filimonkd
+/migrations/                        @filimonkd
+/packages/shared/src/money.ts       @filimonkd
+/apps/api/src/config/               @filimonkd
+/apps/api/src/db/                   @filimonkd
+/apps/api/src/channels/             @filimonkd
