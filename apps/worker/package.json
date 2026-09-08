@@ -1,0 +1,27 @@
+{
+  "name": "@howlow/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "HOWLOW worker \u2014 auction closing, LUB_V1 execution, notifications and scheduled jobs",
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/index.ts",
+    "build": "tsc --build tsconfig.build.json",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@howlow/api": "*",
+    "@howlow/shared": "*",
+    "bullmq": "^5.81.4",
+    "dotenv": "^17.4.2",
+    "ioredis": "^5.11.1",
+    "pino": "^10.3.1",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "pino-pretty": "^13.1.3"
+  }
+}
