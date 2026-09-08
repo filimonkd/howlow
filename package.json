@@ -1,0 +1,55 @@
+{
+  "name": "howlow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "HOWLOW — Telegram + Website unified auction platform (modular monolith + worker)",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:api dev:worker dev:web",
+    "dev:api": "npm run dev --workspace @howlow/api",
+    "dev:worker": "npm run dev --workspace @howlow/worker",
+    "dev:web": "npm run dev --workspace @howlow/web",
+    "build": "npm run build --workspace @howlow/shared && npm run build --workspace @howlow/api && npm run build --workspace @howlow/worker && npm run build --workspace @howlow/web",
+    "start:api": "npm run start --workspace @howlow/api",
+    "start:worker": "npm run start --workspace @howlow/worker",
+    "typecheck": "tsc --build --force tsconfig.build.json && npm run typecheck --workspaces --if-present && tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "migrate:up": "node-pg-migrate -m migrations -j sql up",
+    "migrate:down": "node-pg-migrate -m migrations -j sql down",
+    "migrate:create": "node-pg-migrate -m migrations -j sql create",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:reset": "docker compose down -v",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
+    "verify:runtime": "node scripts/smoke.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^22.19.1",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.12.0",
+    "node-pg-migrate": "^9.0.0",
+    "npm-run-all2": "^8.0.4",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^3.2.7"
+  }
+}

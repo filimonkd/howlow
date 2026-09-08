@@ -43,3 +43,6 @@ Thumbs.db
 
 # Local docker volumes
 .docker-data/
+
+# Transient fixtures written by tests/architecture.test.ts
+**/arch-fixture.ts
