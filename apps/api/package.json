@@ -1,0 +1,52 @@
+{
+  "name": "@howlow/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "HOWLOW API \u2014 modular monolith hosting the HTTP and Telegram channel adapters",
+  "main": "./dist/index.js",
+  "exports": {
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "default": "./dist/config/index.js"
+    },
+    "./db": {
+      "types": "./dist/db/index.d.ts",
+      "default": "./dist/db/index.js"
+    },
+    "./shared": {
+      "types": "./dist/shared/index.d.ts",
+      "default": "./dist/shared/index.js"
+    },
+    "./modules/*": {
+      "types": "./dist/modules/*/index.d.ts",
+      "default": "./dist/modules/*/index.js"
+    }
+  },
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/index.ts",
+    "build": "tsc --build tsconfig.build.json",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@howlow/shared": "*",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "grammy": "^1.46.0",
+    "helmet": "^8.3.0",
+    "ioredis": "^5.11.1",
+    "pg": "^8.23.0",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/pg": "^8.15.6",
+    "pino-pretty": "^13.1.3"
+  }
+}
