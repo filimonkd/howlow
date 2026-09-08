@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "HOWLOW website \u2014 React 19 + Vite client of the single HOWLOW backend",
+  "description": "HOWLOW website — React 19 + Vite client of the single HOWLOW backend",
   "scripts": {
     "dev": "vite",
     "build": "tsc --build tsconfig.build.json && vite build",

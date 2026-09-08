@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "HOWLOW \u2014 Telegram + Website unified auction platform (modular monolith + worker)",
+  "description": "HOWLOW — Telegram + Website unified auction platform (modular monolith + worker)",
   "license": "UNLICENSED",
   "engines": {
     "node": ">=22.0.0",

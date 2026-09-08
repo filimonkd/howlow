@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "HOWLOW worker \u2014 auction closing, LUB_V1 execution, notifications and scheduled jobs",
+  "description": "HOWLOW worker — auction closing, LUB_V1 execution, notifications and scheduled jobs",
   "main": "./dist/index.js",
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/index.ts",

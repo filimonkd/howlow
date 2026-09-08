@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "HOWLOW API \u2014 modular monolith hosting the HTTP and Telegram channel adapters",
+  "description": "HOWLOW API — modular monolith hosting the HTTP and Telegram channel adapters",
   "main": "./dist/index.js",
   "exports": {
     "./config": {
