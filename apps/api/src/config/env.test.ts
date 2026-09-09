@@ -30,16 +30,30 @@ describe('environment validation', () => {
     );
   });
 
-  it('requires the Telegram pair only when the channel is enabled', () => {
+  it('requires the Telegram settings only when the channel is enabled', () => {
     expect(() => parseEnv({ ...base, TELEGRAM_ENABLED: 'true' })).toThrow(EnvValidationError);
+
+    // Partial configuration is still refused: the bot username is needed to
+    // build account-linking deep links, so enabling the channel without it
+    // would fail later, at the point a user tried to connect Telegram.
+    expect(() =>
+      parseEnv({
+        ...base,
+        TELEGRAM_ENABLED: 'true',
+        TELEGRAM_BOT_TOKEN: '1234:token',
+        TELEGRAM_WEBHOOK_SECRET: 'c'.repeat(32),
+      }),
+    ).toThrow(EnvValidationError);
 
     const env = parseEnv({
       ...base,
       TELEGRAM_ENABLED: 'true',
       TELEGRAM_BOT_TOKEN: '1234:token',
       TELEGRAM_WEBHOOK_SECRET: 'c'.repeat(32),
+      TELEGRAM_BOT_USERNAME: 'howlow_bot',
     });
     expect(env.TELEGRAM_ENABLED).toBe(true);
+    expect(env.TELEGRAM_BOT_USERNAME).toBe('howlow_bot');
   });
 
   it('coerces numeric and boolean strings', () => {

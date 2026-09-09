@@ -49,6 +49,9 @@ export const envSchema = z
     TELEGRAM_ENABLED: booleanish.default(false),
     TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
     TELEGRAM_WEBHOOK_SECRET: z.string().min(16).optional(),
+    // Used to build the t.me deep link for account linking. Public information,
+    // not a secret.
+    TELEGRAM_BOT_USERNAME: z.string().min(3).max(64).optional(),
 
     S3_ENDPOINT: z.url().default('http://localhost:9000'),
     S3_REGION: z.string().min(1).default('us-east-1'),
@@ -75,6 +78,13 @@ export const envSchema = z
         code: 'custom',
         path: ['TELEGRAM_WEBHOOK_SECRET'],
         message: 'TELEGRAM_WEBHOOK_SECRET is required when TELEGRAM_ENABLED is true',
+      });
+    }
+    if (!env.TELEGRAM_BOT_USERNAME) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['TELEGRAM_BOT_USERNAME'],
+        message: 'TELEGRAM_BOT_USERNAME is required when TELEGRAM_ENABLED is true',
       });
     }
   });
