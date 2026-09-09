@@ -11,5 +11,12 @@
     "declarationMap": false,
     "noEmit": true
   },
-  "include": ["vitest.config.ts", "eslint.config.js", "scripts/**/*.mjs", "tests/**/*.ts"]
+  "include": [
+    "vitest.config.ts",
+    "vitest.db.config.ts",
+    "eslint.config.js",
+    "scripts/**/*.mjs",
+    "tests/**/*.ts",
+    "seeds/**/*.ts"
+  ]
 }
