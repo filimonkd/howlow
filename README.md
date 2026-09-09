@@ -145,6 +145,16 @@ npm run dev            # api :4000 · worker · web :5173
 Then open <http://localhost:5173>. The page reports the API's readiness,
 including the live PostgreSQL and Redis checks.
 
+No separate build step is needed first: `npm run dev` and each `dev:*` script
+build the workspace declarations themselves, because `@howlow/shared` and
+`@howlow/api` are imported through their compiled output. `dev` also watches
+those declarations, so editing shared types reaches the API, worker and website
+without a restart.
+
+`.env` is always read from the repository root, whichever script started the
+process — npm runs a workspace script with the cwd set to that workspace, so
+resolving it relative to the cwd would find nothing.
+
 ### Services started by `docker compose`
 
 | Service  | Purpose                    | Ports                                           |
@@ -208,6 +218,7 @@ pairing. While disabled, the webhook route is not mounted at all.
 | Command                  | What it does                                               |
 | ------------------------ | ---------------------------------------------------------- |
 | `npm run dev`            | API, worker and web together, all watching                 |
+| `npm run build:types`    | Build the workspace declarations other packages import     |
 | `npm run dev:api`        | API only (`:4000`)                                         |
 | `npm run dev:worker`     | Worker only                                                |
 | `npm run dev:web`        | Website only (`:5173`, proxies `/api` to the API)          |
