@@ -14,9 +14,14 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm-run-all --parallel dev:api dev:worker dev:web",
+    "predev": "npm run build:types",
+    "dev": "npm-run-all --parallel dev:types dev:api dev:worker dev:web",
+    "dev:types": "tsc --build packages/shared/tsconfig.build.json apps/api/tsconfig.build.json --watch --preserveWatchOutput",
+    "predev:api": "npm run build:types",
     "dev:api": "npm run dev --workspace @howlow/api",
+    "predev:worker": "npm run build:types",
     "dev:worker": "npm run dev --workspace @howlow/worker",
+    "predev:web": "npm run build:types",
     "dev:web": "npm run dev --workspace @howlow/web",
     "build": "npm run build --workspace @howlow/shared && npm run build --workspace @howlow/api && npm run build --workspace @howlow/worker && npm run build --workspace @howlow/web",
     "start:api": "npm run start --workspace @howlow/api",
