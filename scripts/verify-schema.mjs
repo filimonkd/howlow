@@ -9,6 +9,7 @@
  */
 import process from 'node:process';
 import pg from 'pg';
+import { loadEnvFile } from './load-env.mjs';
 
 const REQUIRED_TABLES = [
   'users',
@@ -97,9 +98,13 @@ const failures = [];
 const fail = (message) => failures.push(message);
 
 async function main() {
+  await loadEnvFile();
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
-    console.error('verify-schema: DATABASE_URL is not set');
+    console.error(
+      'verify-schema: DATABASE_URL is not set, and no .env was found.\n' +
+        'Copy .env.example to .env, or set DATABASE_URL in the environment.',
+    );
     process.exit(1);
   }
 

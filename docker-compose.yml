@@ -43,9 +43,16 @@ services:
       timeout: 5s
       retries: 20
 
+  # Object storage is not used by any code until Phase 9, and MinIO is the one
+  # service here that has proven fragile across machines (it segfaults on some
+  # CPUs under WSL2, exit 139). It is therefore opt-in, so a crash-looping
+  # optional container cannot muddy an otherwise healthy `docker compose up`:
+  #
+  #     docker compose --profile storage up -d
   minio:
     image: minio/minio:latest
     container_name: howlow-minio
+    profiles: ['storage']
     restart: unless-stopped
     command: ['server', '/data', '--console-address', ':9001']
     environment:
@@ -68,6 +75,7 @@ services:
   minio-init:
     image: minio/mc:latest
     container_name: howlow-minio-init
+    profiles: ['storage']
     depends_on:
       - minio
     entrypoint:
