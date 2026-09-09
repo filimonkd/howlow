@@ -155,7 +155,11 @@ including the live PostgreSQL and Redis checks.
 | mailpit  | Local SMTP + web inbox     | `1025` (SMTP), `8025` (<http://localhost:8025>) |
 
 `minio-init` runs once to create the `howlow-dev` bucket, then exits — that is
-expected, not a failure.
+expected, not a failure. It waits for MinIO by retrying, so `docker compose
+up` never blocks on a healthcheck for it.
+
+MinIO reports `Up` rather than `Up (healthy)`: it deliberately has no
+healthcheck. See the comment in `docker-compose.yml` for why.
 
 Only `postgres` and `redis` are required to run the application today; MinIO and
 Mailpit are used from Phase 9 onward. To start just the essentials:
@@ -172,6 +176,7 @@ docker compose up -d postgres redis
 | `wsl -l -v` lists no `docker-desktop` distro (Windows)                                        | The engine VM was never provisioned. Launching Docker Desktop creates it on first successful start; watch that window for the real error if it fails.                                                                                                                                                    |
 | `mkdir /var/lib/docker/overlay2/…: read-only file system`                                     | The engine's own disk filled up or errored and remounted read-only. Free space on the host, restart Docker Desktop, and if it persists use Docker Desktop → Troubleshoot → **Clean / Purge data** to recreate the disk image. `docker system prune` will not help — it needs to write to the same store. |
 | A service is unhealthy but the others are fine                                                | `docker compose logs <service>` first. Nothing in the app depends on MinIO or Mailpit yet, so those can be left stopped.                                                                                                                                                                                 |
+| `Found orphan containers …`                                                                   | Containers left by an earlier version of this file. Clear them with `docker compose up -d --remove-orphans`.                                                                                                                                                                                             |
 
 If Docker proves troublesome on Windows, running the whole stack inside WSL2 —
 PostgreSQL and Redis installed natively in an Ubuntu distro — works just as well
