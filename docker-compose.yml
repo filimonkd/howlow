@@ -56,27 +56,31 @@ services:
       - '9001:9001'
     volumes:
       - minio-data:/data
-    healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
-      interval: 5s
-      timeout: 5s
-      retries: 20
+    # Deliberately no healthcheck. The server image's contents are not a stable
+    # contract, so a healthcheck that shells out to a binary inside it can fail
+    # for reasons unrelated to MinIO actually being up — and a failing check
+    # here blocks startup rather than merely misreporting. Readiness is waited
+    # for by minio-init below, using a client that is guaranteed to exist.
 
-  # Creates the development bucket once MinIO is healthy, then exits.
+  # Creates the development bucket, then exits 0. Waits for MinIO by retrying
+  # the first real command against it: `mc alias set` fails until the server
+  # answers, so the loop is the readiness check and needs no healthcheck.
   minio-init:
     image: minio/mc:latest
     container_name: howlow-minio-init
     depends_on:
-      minio:
-        condition: service_healthy
+      - minio
     entrypoint:
       - /bin/sh
       - -c
       - |
-        mc alias set local http://minio:9000 howlow-local-access-key howlow-local-secret-key &&
-        mc mb --ignore-existing local/howlow-dev &&
+        until mc alias set local http://minio:9000 howlow-local-access-key howlow-local-secret-key; do
+          echo 'waiting for minio...'
+          sleep 2
+        done
+        mc mb --ignore-existing local/howlow-dev
         mc anonymous set download local/howlow-dev
-    restart: on-failure
+        echo 'minio ready: bucket howlow-dev'
 
   # Mailpit rather than MailHog: MailHog was archived in 2020 and its published
   # image declares a USER whose passwd entry is missing, so the container cannot
