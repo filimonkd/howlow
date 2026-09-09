@@ -114,7 +114,7 @@ howlow/
 │   └── shared/                 money primitives, error taxonomy, zod schemas
 ├── migrations/                 raw SQL migrations (node-pg-migrate)
 ├── scripts/smoke.mjs           runtime verification used by CI
-├── docker-compose.yml          postgres · redis · minio · mailhog
+├── docker-compose.yml          postgres · redis · minio · mailpit
 ├── .github/workflows/ci.yml    lint · typecheck · test · build · migrate · smoke
 └── .env.example
 ```
@@ -137,7 +137,7 @@ node -e "console.log('JWT_SECRET='+require('crypto').randomBytes(48).toString('b
 node -e "console.log('SESSION_SECRET='+require('crypto').randomBytes(48).toString('base64url'))"
 # paste both into .env
 
-npm run docker:up      # postgres, redis, minio, mailhog
+npm run docker:up      # postgres, redis, minio, mailpit
 npm run migrate:up     # apply schema
 npm run dev            # api :4000 · worker · web :5173
 ```
@@ -152,10 +152,30 @@ including the live PostgreSQL and Redis checks.
 | postgres | PostgreSQL 16              | `5432`                                          |
 | redis    | Redis 7                    | `6379`                                          |
 | minio    | S3-compatible object store | `9000` (API), `9001` (console)                  |
-| mailhog  | Local SMTP + web inbox     | `1025` (SMTP), `8025` (<http://localhost:8025>) |
+| mailpit  | Local SMTP + web inbox     | `1025` (SMTP), `8025` (<http://localhost:8025>) |
 
 `minio-init` runs once to create the `howlow-dev` bucket, then exits — that is
 expected, not a failure.
+
+Only `postgres` and `redis` are required to run the application today; MinIO and
+Mailpit are used from Phase 9 onward. To start just the essentials:
+
+```bash
+docker compose up -d postgres redis
+```
+
+### Docker troubleshooting
+
+| Symptom                                                                                       | Cause and fix                                                                                                                                                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified` (Windows) | Docker Desktop's engine is not running. The CLI is installed separately, so `docker` exists either way. Launch Docker Desktop and wait for "Engine running"; `docker version` must print a **Server** section.                                                                                           |
+| `wsl -l -v` lists no `docker-desktop` distro (Windows)                                        | The engine VM was never provisioned. Launching Docker Desktop creates it on first successful start; watch that window for the real error if it fails.                                                                                                                                                    |
+| `mkdir /var/lib/docker/overlay2/…: read-only file system`                                     | The engine's own disk filled up or errored and remounted read-only. Free space on the host, restart Docker Desktop, and if it persists use Docker Desktop → Troubleshoot → **Clean / Purge data** to recreate the disk image. `docker system prune` will not help — it needs to write to the same store. |
+| A service is unhealthy but the others are fine                                                | `docker compose logs <service>` first. Nothing in the app depends on MinIO or Mailpit yet, so those can be left stopped.                                                                                                                                                                                 |
+
+If Docker proves troublesome on Windows, running the whole stack inside WSL2 —
+PostgreSQL and Redis installed natively in an Ubuntu distro — works just as well
+and avoids the virtual-disk layer entirely.
 
 ---
 

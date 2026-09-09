@@ -78,10 +78,20 @@ services:
         mc anonymous set download local/howlow-dev
     restart: on-failure
 
-  mailhog:
-    image: mailhog/mailhog:latest
-    container_name: howlow-mailhog
+  # Mailpit rather than MailHog: MailHog was archived in 2020 and its published
+  # image declares a USER whose passwd entry is missing, so the container cannot
+  # be created ("unable to find user mailhog"). Mailpit is its maintained
+  # successor and keeps the same ports, so nothing else changes.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: howlow-mailpit
     restart: unless-stopped
+    environment:
+      # Development inbox: accept anything, so application code never needs
+      # environment-specific SMTP credentials.
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+      MP_MAX_MESSAGES: 5000
     ports:
       - '1025:1025'
       - '8025:8025'
