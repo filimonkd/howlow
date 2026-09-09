@@ -157,15 +157,21 @@ resolving it relative to the cwd would find nothing.
 
 ### Services started by `docker compose`
 
-| Service  | Purpose                    | Ports                                           |
-| -------- | -------------------------- | ----------------------------------------------- |
-| postgres | PostgreSQL 16              | `5432`                                          |
-| redis    | Redis 7                    | `6379`                                          |
-| minio    | S3-compatible object store | `9000` (API), `9001` (console)                  |
-| mailpit  | Local SMTP + web inbox     | `1025` (SMTP), `8025` (<http://localhost:8025>) |
+| Service  | Purpose                                      | Ports                                           |
+| -------- | -------------------------------------------- | ----------------------------------------------- |
+| postgres | PostgreSQL 16                                | `5432`                                          |
+| redis    | Redis 7                                      | `6379`                                          |
+| minio    | S3-compatible object store (opt-in, Phase 9) | `9000` (API), `9001` (console)                  |
+| mailpit  | Local SMTP + web inbox                       | `1025` (SMTP), `8025` (<http://localhost:8025>) |
 
-`minio-init` runs once to create the `howlow-dev` bucket, then exits — that is
-expected, not a failure. It waits for MinIO by retrying, so `docker compose
+MinIO and `minio-init` are **opt-in** and start only with
+`docker compose --profile storage up -d`. Nothing in the codebase uses object
+storage before Phase 9, and MinIO is the one service here that has proven
+fragile across machines, so a default bring-up contains only services the
+application actually needs.
+
+When it is enabled, `minio-init` creates the `howlow-dev` bucket and exits — that
+is expected, not a failure. It waits for MinIO by retrying, so `docker compose
 up` never blocks on a healthcheck for it.
 
 MinIO reports `Up` rather than `Up (healthy)`: it deliberately has no
@@ -180,13 +186,14 @@ docker compose up -d postgres redis
 
 ### Docker troubleshooting
 
-| Symptom                                                                                       | Cause and fix                                                                                                                                                                                                                                                                                            |
-| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified` (Windows) | Docker Desktop's engine is not running. The CLI is installed separately, so `docker` exists either way. Launch Docker Desktop and wait for "Engine running"; `docker version` must print a **Server** section.                                                                                           |
-| `wsl -l -v` lists no `docker-desktop` distro (Windows)                                        | The engine VM was never provisioned. Launching Docker Desktop creates it on first successful start; watch that window for the real error if it fails.                                                                                                                                                    |
-| `mkdir /var/lib/docker/overlay2/…: read-only file system`                                     | The engine's own disk filled up or errored and remounted read-only. Free space on the host, restart Docker Desktop, and if it persists use Docker Desktop → Troubleshoot → **Clean / Purge data** to recreate the disk image. `docker system prune` will not help — it needs to write to the same store. |
-| A service is unhealthy but the others are fine                                                | `docker compose logs <service>` first. Nothing in the app depends on MinIO or Mailpit yet, so those can be left stopped.                                                                                                                                                                                 |
-| `Found orphan containers …`                                                                   | Containers left by an earlier version of this file. Clear them with `docker compose up -d --remove-orphans`.                                                                                                                                                                                             |
+| Symptom                                                                                       | Cause and fix                                                                                                                                                                                                                                                                                                                  |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified` (Windows) | Docker Desktop's engine is not running. The CLI is installed separately, so `docker` exists either way. Launch Docker Desktop and wait for "Engine running"; `docker version` must print a **Server** section.                                                                                                                 |
+| `wsl -l -v` lists no `docker-desktop` distro (Windows)                                        | The engine VM was never provisioned. Launching Docker Desktop creates it on first successful start; watch that window for the real error if it fails.                                                                                                                                                                          |
+| `mkdir /var/lib/docker/overlay2/…: read-only file system`                                     | The engine's own disk filled up or errored and remounted read-only. Free space on the host, restart Docker Desktop, and if it persists use Docker Desktop → Troubleshoot → **Clean / Purge data** to recreate the disk image. `docker system prune` will not help — it needs to write to the same store.                       |
+| `howlow-minio` shows `Restarting (139)`                                                       | Exit 139 is SIGSEGV: the MinIO process is crashing, not misconfigured. It segfaults on some CPUs under WSL2. MinIO is opt-in and unused before Phase 9, so ignore it, or `docker compose --profile storage down`. When Phase 9 needs it, check `docker compose logs minio` and try pinning an older `minio/minio` release tag. |
+| A service is unhealthy but the others are fine                                                | `docker compose logs <service>` first. Nothing in the app depends on MinIO or Mailpit yet, so those can be left stopped.                                                                                                                                                                                                       |
+| `Found orphan containers …`                                                                   | Containers left by an earlier version of this file. Clear them with `docker compose up -d --remove-orphans`.                                                                                                                                                                                                                   |
 
 If Docker proves troublesome on Windows, running the whole stack inside WSL2 —
 PostgreSQL and Redis installed natively in an Ubuntu distro — works just as well
