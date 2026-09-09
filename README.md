@@ -246,8 +246,16 @@ npm run migrate:up
 npm run migrate:down
 ```
 
-Migrations are raw SQL. See [docs/migrations.md](docs/migrations.md) for the
-rules that apply to money, bid and result tables.
+```bash
+npm run db:verify   # assert schema completeness and money types
+npm run seed        # idempotent development data
+npm run db:reset    # roll back, re-migrate, re-seed
+npm run test:db     # constraint tests against real PostgreSQL
+```
+
+Migrations are raw SQL. [docs/database.md](docs/database.md) documents the
+schema, the money representation and every rule the database enforces;
+[docs/migrations.md](docs/migrations.md) covers the migration workflow.
 
 ---
 
