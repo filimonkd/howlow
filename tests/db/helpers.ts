@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { loadEnvFile } from '../../scripts/load-env.mjs';
 
 /**
  * Helpers for the integration suite that runs against real PostgreSQL.
@@ -9,10 +10,13 @@ import pg from 'pg';
  * constraint violation aborts the surrounding transaction.
  */
 export async function connect(): Promise<pg.Client> {
+  // Same .env the API, the migrations and the seeds use.
+  await loadEnvFile();
   const connectionString = process.env['DATABASE_URL'];
   if (connectionString === undefined || connectionString === '') {
     throw new Error(
-      'DATABASE_URL is required for the database suite. Run `npm run docker:up` and `npm run migrate` first.',
+      'DATABASE_URL is required for the database suite, and no .env was found.\n' +
+        'Copy .env.example to .env, then run `npm run docker:up` and `npm run migrate`.',
     );
   }
   const client = new pg.Client({ connectionString });
