@@ -87,8 +87,23 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Verify migrations apply to an empty database
-        run: npm run migrate:up
+      - name: Apply migrations to an empty database
+        run: npm run migrate
+
+      - name: Verify schema (tables, indexes, constraints, triggers, money types)
+        run: npm run db:verify
+
+      - name: Verify migrations roll back and re-apply cleanly
+        run: |
+          npx node-pg-migrate -m migrations -j sql down 999
+          npm run migrate
+          npm run db:verify
+
+      - name: Seed development data
+        run: npm run seed
+
+      - name: Database constraint tests
+        run: npm run test:db
 
       - name: Verify API boots and reports healthy
         run: node scripts/smoke.mjs
