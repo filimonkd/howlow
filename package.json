@@ -50,7 +50,8 @@
     "docker:logs": "docker compose logs -f",
     "docker:reset": "docker compose down -v",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
-    "verify:runtime": "node scripts/smoke.mjs"
+    "verify:runtime": "node scripts/smoke.mjs",
+    "verify:auth": "node scripts/smoke-auth.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

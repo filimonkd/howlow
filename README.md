@@ -264,6 +264,16 @@ Migrations are raw SQL. [docs/database.md](docs/database.md) documents the
 schema, the money representation and every rule the database enforces;
 [docs/migrations.md](docs/migrations.md) covers the migration workflow.
 
+### Authentication
+
+```bash
+npm run verify:auth   # drive the whole auth surface over HTTP against a live API
+```
+
+[docs/authentication.md](docs/authentication.md) documents the identity model,
+the Telegram linking flow, refresh-token rotation and reuse detection, and every
+security decision behind them.
+
 ---
 
 ## Branch strategy

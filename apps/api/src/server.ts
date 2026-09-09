@@ -1,5 +1,6 @@
 import type { Server } from 'node:http';
 import { createApp } from './app.js';
+import { initTelegram } from './channels/telegram/index.js';
 import { loadConfig } from './config/index.js';
 import { closePool, closeRedis } from './db/index.js';
 import { getLogger } from './shared/index.js';
@@ -11,6 +12,8 @@ export function startServer(): Server {
   const logger = getLogger();
   const server = createApp().listen(env.PORT, env.HOST, () => {
     logger.info({ host: env.HOST, port: env.PORT, env: env.NODE_ENV }, 'HOWLOW API listening');
+    // Resolve the bot's identity now rather than on the first webhook delivery.
+    void initTelegram();
   });
 
   registerShutdown(server);

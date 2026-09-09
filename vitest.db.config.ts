@@ -15,7 +15,8 @@ export default defineConfig({
     // Constraint tests share one database; running files in parallel would let
     // their fixtures collide.
     fileParallelism: false,
-    testTimeout: 30_000,
+    // argon2 hashing is deliberately slow; the auth suite needs the headroom.
+    testTimeout: 60_000,
     hookTimeout: 30_000,
   },
 });
