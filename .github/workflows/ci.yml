@@ -108,6 +108,11 @@ jobs:
       - name: Verify API boots and reports healthy
         run: node scripts/smoke.mjs
 
+      - name: Verify the authentication surface end to end
+        run: npm run verify:auth
+        env:
+          TELEGRAM_BOT_USERNAME: howlow_ci_bot
+
   secret-scan:
     name: Secret scan
     runs-on: ubuntu-latest
