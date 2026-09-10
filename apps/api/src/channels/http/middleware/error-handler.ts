@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { ZodError } from 'zod';
 import { AppError, REQUEST_ID_HEADER, type ApiError, type ErrorCode } from '@howlow/shared';
 import { getLogger } from '../../../shared/index.js';
 
@@ -41,8 +42,33 @@ export function errorHandler(error: unknown, req: Request, res: Response, next: 
     return;
   }
 
+  // A schema rejection is a bad request, not a server fault. Handled here so
+  // that a controller calling `schema.parse` directly cannot turn a malformed
+  // body into a 500 and a stack trace — which is exactly what the wallet
+  // controller did until the HTTP smoke test caught it.
+  if (error instanceof ZodError) {
+    getLogger().warn({ requestId, path: req.path, issues: fieldIssues(error) }, 'Request rejected');
+    res.status(STATUS_BY_CODE.VALIDATION_FAILED).json(
+      toBody('VALIDATION_FAILED', 'Some of the details you sent are not valid.', requestId, {
+        issues: fieldIssues(error),
+      }),
+    );
+    return;
+  }
+
   getLogger().error({ err: error, requestId, path: req.path }, 'Unhandled error');
   res.status(500).json(toBody('INTERNAL', 'An unexpected error occurred', requestId));
+}
+
+/**
+ * Which fields were wrong and why — enough for a client to fix the request,
+ * without the stack trace or internal shape a raw ZodError carries.
+ */
+function fieldIssues(error: ZodError): { field: string; message: string }[] {
+  return error.issues.map((issue) => ({
+    field: issue.path.map(String).join('.') || '(body)',
+    message: issue.message,
+  }));
 }
 
 /** 404 for any route the HTTP channel does not expose. */
