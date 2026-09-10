@@ -134,9 +134,7 @@ describe('the ledger', () => {
     await wallet.credit('deposit', { userId, amountMinor: 1000n, channel: 'system' });
 
     await expect(
-      client.query(`UPDATE wallet_entries SET amount_minor = 999999 WHERE wallet_id = $1`, [
-        account.id,
-      ]),
+      client.query(`UPDATE wallet_entries SET amount_minor = 999999 WHERE wallet_id = $1`, [account.id]),
     ).rejects.toThrow();
     await expect(
       client.query(`DELETE FROM wallet_entries WHERE wallet_id = $1`, [account.id]),
@@ -273,8 +271,18 @@ describe('idempotency', () => {
     const userId = await createUser(client);
     const account = await wallet.getWallet(userId);
 
-    await wallet.credit('deposit', { userId, amountMinor: 500n, idempotencyKey: 'a-key-one', channel: 'web' });
-    await wallet.credit('deposit', { userId, amountMinor: 500n, idempotencyKey: 'a-key-two', channel: 'web' });
+    await wallet.credit('deposit', {
+      userId,
+      amountMinor: 500n,
+      idempotencyKey: 'a-key-one',
+      channel: 'web',
+    });
+    await wallet.credit('deposit', {
+      userId,
+      amountMinor: 500n,
+      idempotencyKey: 'a-key-two',
+      channel: 'web',
+    });
 
     expect(await entryCount(client, account.id)).toBe(2);
     expect((await readWalletRow(client, account.id)).availableMinor).toBe(1000n);
@@ -330,7 +338,9 @@ describe('money representation', () => {
       }),
     );
 
-    const amounts = JSON.stringify(body).match(/"(available|reserved|total|amount|balanceAfter)Minor":[^,}]+/g);
+    const amounts = JSON.stringify(body).match(
+      /"(available|reserved|total|amount|balanceAfter)Minor":[^,}]+/g,
+    );
     expect(amounts).not.toBeNull();
     for (const amount of amounts ?? []) {
       expect(amount).toMatch(/":"-?\d+"$/);

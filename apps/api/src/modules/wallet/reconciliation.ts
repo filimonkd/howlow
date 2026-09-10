@@ -132,7 +132,11 @@ export async function reconcileAllWallets(
   const logger = getLogger();
   if (inconsistent.length > 0) {
     logger.error(
-      { walletsChecked, inconsistentCount: inconsistent.length, walletIds: inconsistent.map((r) => r.walletId) },
+      {
+        walletsChecked,
+        inconsistentCount: inconsistent.length,
+        walletIds: inconsistent.map((r) => r.walletId),
+      },
       'wallet.reconcile: ledger discrepancies found',
     );
   } else {

@@ -1,21 +1,9 @@
-import type {
-  Channel,
-  Currency,
-  Money,
-  Role,
-  WalletDto,
-  WalletEntryDto,
-} from '@howlow/shared';
+import type { Channel, Currency, Money, Role, WalletDto, WalletEntryDto } from '@howlow/shared';
 import { AppError, money } from '@howlow/shared';
 import type { Tx } from '../../db/index.js';
 import { withTransaction } from '../../db/index.js';
 import { hasAnyRole, loadRoles } from '../auth/rbac.js';
-import {
-  applyMovement,
-  postMovement,
-  recordWalletEvent,
-  type RequestContext,
-} from './ledger.js';
+import { applyMovement, postMovement, recordWalletEvent, type RequestContext } from './ledger.js';
 import { invalidAmount, unauthorizedWalletOperation, walletNotFound } from './errors.js';
 import type { MovementResult, WalletEntryRecord, WalletRecord } from './types.js';
 import * as repo from './walletRepository.js';
@@ -83,10 +71,7 @@ export async function getWallet(
   return wallet;
 }
 
-export async function getBalance(
-  userId: string,
-  currency: Currency = DEFAULT_CURRENCY,
-): Promise<Money> {
+export async function getBalance(userId: string, currency: Currency = DEFAULT_CURRENCY): Promise<Money> {
   const wallet = await getWallet(userId, currency);
   return money(wallet.availableMinor, wallet.currency);
 }
@@ -136,19 +121,11 @@ type RefundType = 'bid_fee_refund' | 'payment_refund';
  * transaction. Money must not be moved in a transaction that can commit while
  * the operation that caused it rolls back.
  */
-export async function credit(
-  type: CreditType,
-  request: MovementRequest,
-  tx?: Tx,
-): Promise<MovementResult> {
+export async function credit(type: CreditType, request: MovementRequest, tx?: Tx): Promise<MovementResult> {
   return move(type, request, tx);
 }
 
-export async function debit(
-  type: DebitType,
-  request: MovementRequest,
-  tx?: Tx,
-): Promise<MovementResult> {
+export async function debit(type: DebitType, request: MovementRequest, tx?: Tx): Promise<MovementResult> {
   return move(type, request, tx);
 }
 
@@ -279,10 +256,7 @@ export async function freezeWallet(input: {
     if (!wallet) throw walletNotFound(input.walletId);
     if (wallet.frozenAt !== null) return wallet;
 
-    await repo.setFrozen(
-      { walletId: wallet.id, reason: input.reason, actorUserId: input.actorUserId },
-      tx,
-    );
+    await repo.setFrozen({ walletId: wallet.id, reason: input.reason, actorUserId: input.actorUserId }, tx);
     await recordWalletEvent(
       'wallet.frozen',
       wallet.id,

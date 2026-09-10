@@ -86,10 +86,9 @@ export async function findWalletByUserId(
 }
 
 export async function findWalletById(id: string, tx?: Tx): Promise<WalletRecord | undefined> {
-  const { rows } = await runner(tx).query<WalletRow>(
-    `SELECT ${WALLET_COLUMNS} FROM wallets WHERE id = $1`,
-    [id],
-  );
+  const { rows } = await runner(tx).query<WalletRow>(`SELECT ${WALLET_COLUMNS} FROM wallets WHERE id = $1`, [
+    id,
+  ]);
   return rows[0] ? toWallet(rows[0]) : undefined;
 }
 
@@ -132,15 +131,11 @@ export async function lockWalletByUserId(
  * wallet moved; the non-negative CHECK is the database's own last word on
  * overdrafts, behind the lock and the service's check.
  */
-export async function updateWalletBalance(
-  walletId: string,
-  availableMinor: bigint,
-  tx: Tx,
-): Promise<void> {
-  await tx.query(
-    `UPDATE wallets SET available_minor = $2, version = version + 1 WHERE id = $1`,
-    [walletId, availableMinor.toString()],
-  );
+export async function updateWalletBalance(walletId: string, availableMinor: bigint, tx: Tx): Promise<void> {
+  await tx.query(`UPDATE wallets SET available_minor = $2, version = version + 1 WHERE id = $1`, [
+    walletId,
+    availableMinor.toString(),
+  ]);
 }
 
 interface EntryRow {
@@ -351,11 +346,7 @@ export async function countSequenceGaps(walletId: string, tx?: Tx): Promise<numb
 }
 
 /** Every wallet id, oldest first, for the nightly sweep. */
-export async function listWalletIds(
-  limit: number,
-  afterId?: string,
-  tx?: Tx,
-): Promise<string[]> {
+export async function listWalletIds(limit: number, afterId?: string, tx?: Tx): Promise<string[]> {
   const { rows } = await runner(tx).query<{ id: string }>(
     `SELECT id FROM wallets
      WHERE ($2::uuid IS NULL OR id > $2::uuid)

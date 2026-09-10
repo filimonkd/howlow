@@ -1,9 +1,4 @@
-import {
-  walletSchema,
-  walletTransactionsSchema,
-  type WalletDto,
-  type WalletEntryDto,
-} from '@howlow/shared';
+import { walletSchema, walletTransactionsSchema, type WalletDto, type WalletEntryDto } from '@howlow/shared';
 import { apiFetch } from './api.js';
 import { getAccessToken } from './auth-api.js';
 

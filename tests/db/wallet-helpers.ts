@@ -142,9 +142,7 @@ export async function readWalletRow(
     reserved_minor: string;
     version: string;
     frozen_at: Date | null;
-  }>(`SELECT available_minor, reserved_minor, version, frozen_at FROM wallets WHERE id = $1`, [
-    walletId,
-  ]);
+  }>(`SELECT available_minor, reserved_minor, version, frozen_at FROM wallets WHERE id = $1`, [walletId]);
   const row = rows[0]!;
   return {
     availableMinor: BigInt(row.available_minor),

@@ -37,9 +37,4 @@ export type { RequestContext, WalletEvent } from './ledger.js';
 export { WALLET_ERRORS } from './errors.js';
 export type { WalletErrorCode } from './errors.js';
 
-export type {
-  MovementInput,
-  MovementResult,
-  WalletEntryRecord,
-  WalletRecord,
-} from './types.js';
+export type { MovementInput, MovementResult, WalletEntryRecord, WalletRecord } from './types.js';

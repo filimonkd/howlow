@@ -130,15 +130,14 @@ export function Wallet({ onBack }: { readonly onBack: () => void }): React.JSX.E
             <p className="mt-1 text-sm opacity-70">Available balance · {state.wallet.currency}</p>
             {state.wallet.reservedMinor !== '0' && (
               <p className="mt-2 text-sm opacity-70">
-                Held:{' '}
-                {formatMoney(moneyFromMinorString(state.wallet.reservedMinor, state.wallet.currency))}
+                Held: {formatMoney(moneyFromMinorString(state.wallet.reservedMinor, state.wallet.currency))}
               </p>
             )}
             {state.wallet.frozen && (
               <div className="mt-3">
                 <Notice kind="error">
-                  This wallet is frozen, so money cannot leave it right now. You can still receive
-                  money and read your history.
+                  This wallet is frozen, so money cannot leave it right now. You can still receive money and
+                  read your history.
                   {state.wallet.frozenReason === null ? '' : ` Reason: ${state.wallet.frozenReason}`}
                 </Notice>
               </div>

@@ -59,18 +59,10 @@ export async function getMyTransactions(req: Request, res: Response): Promise<vo
  * the module asserts the actor's role again, so the operation is protected
  * however it is reached.
  */
-async function adjust(
-  direction: 'credit' | 'debit',
-  req: Request,
-  res: Response,
-): Promise<void> {
+async function adjust(direction: 'credit' | 'debit', req: Request, res: Response): Promise<void> {
   const { userId } = requireAuth(req);
   const body = adminAdjustmentSchema.parse(req.body);
-  const target = await wallet.resolveWalletForAdmin(
-    publicIdParam(req),
-    userId,
-    body.currency,
-  );
+  const target = await wallet.resolveWalletForAdmin(publicIdParam(req), userId, body.currency);
   const key = idempotencyKey(req);
 
   const input = {
@@ -86,8 +78,7 @@ async function adjust(
     context: requestContext(req),
   };
 
-  const result =
-    direction === 'credit' ? await wallet.adminCredit(input) : await wallet.adminDebit(input);
+  const result = direction === 'credit' ? await wallet.adminCredit(input) : await wallet.adminDebit(input);
 
   res.status(result.replayed ? 200 : 201).json({
     walletId: result.walletId,

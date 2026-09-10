@@ -189,11 +189,7 @@ describe('concurrent wallet operations', () => {
     const attempt = (): Promise<wallet.MovementResult> =>
       wallet.credit('deposit', { userId, amountMinor: 7500n, idempotencyKey, channel: 'web' });
 
-    const { fulfilled, walletErrors, otherErrors } = await settle([
-      attempt(),
-      attempt(),
-      attempt(),
-    ]);
+    const { fulfilled, walletErrors, otherErrors } = await settle([attempt(), attempt(), attempt()]);
 
     expect(otherErrors).toEqual([]);
     expect(walletErrors).toEqual([]);

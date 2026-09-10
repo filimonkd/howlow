@@ -158,10 +158,7 @@ export default tseslint.config(
   {
     files: ['apps/api/src/modules/**/*.ts'],
     rules: {
-      'no-restricted-imports': [
-        'error',
-        { patterns: [TRANSPORT_IMPORT_PATTERN, WALLET_INTERNALS_PATTERN] },
-      ],
+      'no-restricted-imports': ['error', { patterns: [TRANSPORT_IMPORT_PATTERN, WALLET_INTERNALS_PATTERN] }],
     },
   },
 

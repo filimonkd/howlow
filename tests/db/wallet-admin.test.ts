@@ -230,10 +230,9 @@ describe('freezing a wallet', () => {
       channel: 'web',
     });
 
-    const { rows } = await client.query<{ status: string }>(
-      `SELECT status FROM users WHERE id = $1`,
-      [userId],
-    );
+    const { rows } = await client.query<{ status: string }>(`SELECT status FROM users WHERE id = $1`, [
+      userId,
+    ]);
     expect(rows[0]?.status).toBe('active');
   });
 

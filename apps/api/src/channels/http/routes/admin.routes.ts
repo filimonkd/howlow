@@ -20,22 +20,10 @@ export const adminRoutes: Router = Router();
 
 adminRoutes.use(authenticate);
 
-adminRoutes.post(
-  '/wallets/:publicId/credit',
-  authorize('finance', 'admin'),
-  wrap(wallet.adminCredit),
-);
-adminRoutes.post(
-  '/wallets/:publicId/debit',
-  authorize('finance', 'admin'),
-  wrap(wallet.adminDebit),
-);
+adminRoutes.post('/wallets/:publicId/credit', authorize('finance', 'admin'), wrap(wallet.adminCredit));
+adminRoutes.post('/wallets/:publicId/debit', authorize('finance', 'admin'), wrap(wallet.adminDebit));
 adminRoutes.post('/wallets/:publicId/freeze', authorize('finance', 'admin'), wrap(wallet.freeze));
-adminRoutes.post(
-  '/wallets/:publicId/unfreeze',
-  authorize('finance', 'admin'),
-  wrap(wallet.unfreeze),
-);
+adminRoutes.post('/wallets/:publicId/unfreeze', authorize('finance', 'admin'), wrap(wallet.unfreeze));
 
 // Reading a reconciliation report changes nothing, so support agents may see
 // one while investigating; only finance may act on it.
