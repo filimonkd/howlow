@@ -14,10 +14,38 @@ import prettier from 'eslint-config-prettier';
  *   channels/telegram  ⇏  channels/http
  *   channels/http      ⇏  channels/telegram
  *   modules/*          ⇏  channels/*   (business logic knows no transport)
+ *   anything           ⇏  modules/wallet/walletRepository
+ *                                       (only the wallet module moves money)
  *
  * Channel adapters may import `modules/*` and `shared/*`, and nothing else
  * that carries business meaning.
  */
+
+/**
+ * The wallet's SQL is reachable from one directory only.
+ *
+ * Every balance change must be accompanied by its ledger entry in the same
+ * transaction. That is guaranteed by there being exactly one code path that can
+ * change a balance — so anything that could bypass `modules/wallet` is a way
+ * for the guarantee to be lost, whether it is a controller, a Telegram handler,
+ * payment code or an admin tool.
+ */
+const TRANSPORT_IMPORT_PATTERN = {
+  group: ['**/channels', '**/channels/**', 'express', 'grammy', 'grammy/**'],
+  message:
+    'Business logic must not know about transports. Return data and let the channel adapter format it.',
+};
+
+const WALLET_INTERNALS_PATTERN = {
+  group: [
+    '**/modules/wallet/walletRepository',
+    '**/modules/wallet/walletRepository.js',
+    '**/wallet/walletRepository',
+    '**/wallet/walletRepository.js',
+  ],
+  message:
+    'Only modules/wallet may touch wallet SQL. Call the wallet module (getWallet, credit, debit, refund, adminCredit, adminDebit) instead — every balance change must carry its ledger entry in the same transaction.',
+};
 
 const DB_IMPORT_PATTERNS = [
   {
@@ -86,6 +114,7 @@ export default tseslint.config(
         {
           patterns: [
             ...DB_IMPORT_PATTERNS,
+            WALLET_INTERNALS_PATTERN,
             {
               group: ['**/channels/http', '**/channels/http/**', '**/http', '**/http/**'],
               message:
@@ -106,6 +135,7 @@ export default tseslint.config(
         {
           patterns: [
             ...DB_IMPORT_PATTERNS,
+            WALLET_INTERNALS_PATTERN,
             {
               group: ['**/channels/telegram', '**/channels/telegram/**', '**/telegram', '**/telegram/**'],
               message:
@@ -122,21 +152,33 @@ export default tseslint.config(
   },
 
   // ── Architecture: business logic is transport-agnostic ───────────────────
+  //
+  // Blocks with the same rule name replace rather than merge, so each scope
+  // below lists every pattern that applies to it.
   {
     files: ['apps/api/src/modules/**/*.ts'],
     rules: {
       'no-restricted-imports': [
         'error',
-        {
-          patterns: [
-            {
-              group: ['**/channels', '**/channels/**', 'express', 'grammy', 'grammy/**'],
-              message:
-                'Business logic must not know about transports. Return data and let the channel adapter format it.',
-            },
-          ],
-        },
+        { patterns: [TRANSPORT_IMPORT_PATTERN, WALLET_INTERNALS_PATTERN] },
       ],
+    },
+  },
+
+  // The wallet module is the one place wallet SQL may be called from, so it
+  // keeps the transport rule and not the wallet one.
+  {
+    files: ['apps/api/src/modules/wallet/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [TRANSPORT_IMPORT_PATTERN] }],
+    },
+  },
+
+  // ── Architecture: only the wallet module moves money ─────────────────────
+  {
+    files: ['apps/api/src/realtime/**/*.ts', 'apps/worker/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [WALLET_INTERNALS_PATTERN] }],
     },
   },
 
