@@ -1,5 +1,12 @@
-import type { Channel, Currency, Money, Role } from '@howlow/shared';
-import { money } from '@howlow/shared';
+import type {
+  Channel,
+  Currency,
+  Money,
+  Role,
+  WalletDto,
+  WalletEntryDto,
+} from '@howlow/shared';
+import { AppError, money } from '@howlow/shared';
 import type { Tx } from '../../db/index.js';
 import { withTransaction } from '../../db/index.js';
 import { hasAnyRole, loadRoles } from '../auth/rbac.js';
@@ -341,4 +348,65 @@ export async function resolveWalletForAdmin(
 /** Assert the reader may see a reconciliation report for someone else's wallet. */
 export async function assertMayAudit(actorUserId: string): Promise<void> {
   await assertActorRole(actorUserId, AUDIT_ROLES, 'read a reconciliation report');
+}
+
+// ---------------------------------------------------------------------------
+// Wire shapes
+// ---------------------------------------------------------------------------
+
+/**
+ * Map a wallet to its DTO. Lives in the module, not in a channel, so the
+ * website and the Telegram bot are formatting the same numbers from the same
+ * source rather than each doing their own arithmetic.
+ *
+ * Every amount becomes a decimal string here. That is the last point at which
+ * a `bigint` could be turned into a lossy `number`, and it is not.
+ */
+export function toWalletDto(wallet: WalletRecord): WalletDto {
+  return {
+    id: wallet.id,
+    currency: wallet.currency,
+    availableMinor: wallet.availableMinor.toString(),
+    reservedMinor: wallet.reservedMinor.toString(),
+    totalMinor: wallet.totalMinor.toString(),
+    frozen: wallet.frozenAt !== null,
+    frozenReason: wallet.frozenReason,
+    updatedAt: wallet.updatedAt.toISOString(),
+  };
+}
+
+export function toWalletEntryDto(entry: WalletEntryRecord): WalletEntryDto {
+  return {
+    id: entry.id,
+    type: entry.type,
+    currency: entry.currency,
+    amountMinor: entry.amountMinor.toString(),
+    balanceAfterMinor: entry.balanceAfterMinor.toString(),
+    referenceType: entry.referenceType,
+    referenceId: entry.referenceId,
+    memo: entry.memo,
+    createdAt: entry.createdAt.toISOString(),
+  };
+}
+
+/**
+ * Pagination cursors are opaque to clients: an encoded `(created_at, id)` pair,
+ * not an offset. The ledger only grows at the head, so an offset would shift
+ * under a reader between pages and show one entry twice or skip another.
+ */
+export function encodeCursor(cursor: { createdAt: Date; id: string }): string {
+  return Buffer.from(`${cursor.createdAt.toISOString()}|${cursor.id}`, 'utf8').toString('base64url');
+}
+
+export function decodeCursor(value: string): { createdAt: Date; id: string } {
+  const [timestamp, id] = Buffer.from(value, 'base64url').toString('utf8').split('|');
+  const createdAt = timestamp === undefined ? new Date(Number.NaN) : new Date(timestamp);
+  if (id === undefined || id === '' || Number.isNaN(createdAt.getTime())) {
+    throw new AppError({
+      code: 'VALIDATION_FAILED',
+      message: 'Malformed wallet pagination cursor',
+      publicMessage: 'That page cursor is not valid.',
+    });
+  }
+  return { createdAt, id };
 }

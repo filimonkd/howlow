@@ -1,5 +1,6 @@
 import { Router, type RequestHandler } from 'express';
 import * as controller from '../controllers/me.controller.js';
+import * as wallet from '../controllers/wallet.controller.js';
 import { authenticate } from '../middleware/authenticate.js';
 
 const wrap =
@@ -17,3 +18,6 @@ meRoutes.get('/', wrap(controller.getMe));
 meRoutes.post('/telegram/link', wrap(controller.createTelegramLink));
 meRoutes.get('/telegram/status', wrap(controller.getTelegramStatus));
 meRoutes.delete('/telegram', wrap(controller.unlinkTelegram));
+
+meRoutes.get('/wallet', wrap(wallet.getMyWallet));
+meRoutes.get('/wallet/transactions', wrap(wallet.getMyTransactions));

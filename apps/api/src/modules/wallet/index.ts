@@ -13,13 +13,17 @@ export {
   assertMayAudit,
   credit,
   debit,
+  decodeCursor,
   DEFAULT_CURRENCY,
+  encodeCursor,
   freezeWallet,
   getBalance,
   getTransactions,
   getWallet,
   refund,
   resolveWalletForAdmin,
+  toWalletDto,
+  toWalletEntryDto,
   unfreezeWallet,
 } from './walletService.js';
 export type { AdminAdjustment, MovementRequest } from './walletService.js';

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { AUCTION_ALGORITHM_VERSION } from '@howlow/shared';
+import { adminRoutes } from './admin.routes.js';
 import { authRoutes } from './auth.routes.js';
 import { healthRoutes } from './health.routes.js';
 import { meRoutes } from './me.routes.js';
@@ -15,6 +16,7 @@ export function createApiRouter(): Router {
   router.use('/health', healthRoutes);
   router.use('/auth', authRoutes);
   router.use('/me', meRoutes);
+  router.use('/admin', adminRoutes);
 
   router.get('/meta', (_req, res) => {
     res.json({ auctionAlgorithm: AUCTION_ALGORITHM_VERSION });

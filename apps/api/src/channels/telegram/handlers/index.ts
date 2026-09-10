@@ -1,6 +1,7 @@
 import type { Bot, Context } from 'grammy';
-import { AppError } from '@howlow/shared';
+import { AppError, formatMoney, money, type WalletEntryType } from '@howlow/shared';
 import * as auth from '../../../modules/auth/index.js';
+import * as wallet from '../../../modules/wallet/index.js';
 import { getLogger } from '../../../shared/index.js';
 
 /**
@@ -132,11 +133,48 @@ export function registerHandlers(bot: Bot): void {
     }
   });
 
+  /**
+   * The same wallet the website shows, read through the same module. There is
+   * no Telegram wallet: one account, one balance, one ledger.
+   */
+  bot.command('wallet', async (ctx) => {
+    const identity = telegramIdentity(ctx);
+    if (!identity) return;
+
+    try {
+      const user = await auth.resolveTelegramUser(identity.telegramUserId);
+      if (!user) {
+        await ctx.reply('This Telegram account is not connected to HOWLOW yet. Use /start to begin.');
+        return;
+      }
+
+      const account = await wallet.getWallet(user.id);
+      const page = await wallet.getTransactions(user.id, { limit: 5 });
+
+      const lines = [`Balance: ${formatMoney(money(account.availableMinor, account.currency))}`];
+      if (account.frozenAt !== null) {
+        lines.push('', 'This wallet is frozen. Money cannot leave it right now.');
+      }
+      lines.push('', page.entries.length === 0 ? 'No transactions yet.' : 'Recent transactions:');
+      for (const entry of page.entries) {
+        lines.push(
+          `${entry.amountMinor > 0n ? '+' : ''}${formatMoney(
+            money(entry.amountMinor, entry.currency),
+          )} — ${entryLabel(entry.type)} — ${entry.createdAt.toISOString().slice(0, 10)}`,
+        );
+      }
+      await ctx.reply(lines.join('\n'));
+    } catch (error) {
+      await replyWithError(ctx, error);
+    }
+  });
+
   bot.command('help', async (ctx) => {
     await ctx.reply(
       'HOWLOW commands:\n' +
         '/start — connect or recognise your account\n' +
         '/profile — your HOWLOW account\n' +
+        '/wallet — your balance and recent transactions\n' +
         '/help — this message',
     );
   });
@@ -154,4 +192,23 @@ async function beginLinkConfirmation(ctx: Context, token: string): Promise<void>
       ],
     },
   });
+}
+
+/** Entry types in words. A chat message is read by a person, not a machine. */
+function entryLabel(type: WalletEntryType): string {
+  const labels: Record<WalletEntryType, string> = {
+    deposit: 'deposit',
+    bid_fee_refund: 'bid fee refunded',
+    payment_refund: 'payment refunded',
+    admin_credit: 'adjustment by HOWLOW',
+    prize_payout: 'prize',
+    withdrawal: 'withdrawal',
+    bid_fee: 'bid fee',
+    auction_payment: 'auction payment',
+    admin_debit: 'adjustment by HOWLOW',
+    seller_payout: 'seller payout',
+    hold: 'held for a bid',
+    hold_release: 'hold released',
+  };
+  return labels[type];
 }

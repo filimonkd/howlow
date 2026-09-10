@@ -14,6 +14,7 @@ import {
 } from './otp.js';
 import { hashPassword, simulatePasswordVerification, verifyPassword } from './password.js';
 import { enforceRateLimit, resetRateLimit } from './rate-limit.js';
+import { DEFAULT_CURRENCY, getWallet } from '../wallet/walletService.js';
 import * as repo from './repository.js';
 import { issueSession, revokeAllSessions, type IssuedSession } from './session.service.js';
 
@@ -204,6 +205,14 @@ export async function verifyPhone(
 
     await repo.activateUser(user.id, tx);
     await recordAuthEvent('PHONE_VERIFIED', { ...context, actorUserId: user.id }, {}, tx);
+
+    // The wallet exists from the moment the account is usable, in the same
+    // transaction that activates it. Creation is idempotent and settled by the
+    // database's unique (user_id, currency) index, so this is safe alongside
+    // the wallet module's own create-on-first-read — the two cannot race into
+    // two wallets. Imported by file rather than through the wallet barrel to
+    // keep the module graph acyclic.
+    await getWallet(user.id, DEFAULT_CURRENCY, tx);
 
     const roles = await repo.getUserRoles(user.id, tx);
     const refreshed = (await repo.findUserById(user.id, tx))!;
