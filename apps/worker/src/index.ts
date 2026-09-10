@@ -1,12 +1,14 @@
 import { loadConfig } from './config/index.js';
 import { getLogger } from './shared/logger.js';
+import { registerWalletReconcile, WALLET_RECONCILE_CRON } from './jobs/wallet-reconcile.js';
 import { closeQueueConnection, getQueueConnection, QUEUE_NAMES } from './queues/index.js';
 
 /**
  * Worker entrypoint.
  *
- * Phase 0 brings the process up, proves its Redis connection and waits. Job
- * processors are registered here as the phases that own them land.
+ * Processors are registered here as the phases that own them land. Redis
+ * carries scheduling only: every effect a job has is written to PostgreSQL,
+ * which stays the single financial truth.
  */
 async function main(): Promise<void> {
   const env = loadConfig();
@@ -15,9 +17,16 @@ async function main(): Promise<void> {
   const connection = getQueueConnection();
   await connection.ping();
 
+  const workers = [await registerWalletReconcile()];
+
   logger.info(
-    { env: env.NODE_ENV, queues: Object.values(QUEUE_NAMES) },
-    'HOWLOW worker started; no processors registered yet',
+    {
+      env: env.NODE_ENV,
+      queues: Object.values(QUEUE_NAMES),
+      processors: workers.map((worker) => worker.name),
+      walletReconcileCron: WALLET_RECONCILE_CRON,
+    },
+    'HOWLOW worker started',
   );
 
   let shuttingDown = false;
@@ -25,9 +34,13 @@ async function main(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info({ signal }, 'Shutting down HOWLOW worker');
-    void closeQueueConnection().finally(() => {
-      process.exit(0);
-    });
+    // Close the workers first so an in-flight sweep finishes rather than being
+    // cut off part-way through the wallet table.
+    void Promise.all(workers.map(async (worker) => worker.close()))
+      .then(closeQueueConnection)
+      .finally(() => {
+        process.exit(0);
+      });
   };
 
   process.on('SIGTERM', () => {
