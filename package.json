@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "HOWLOW — Telegram + Website unified auction platform (modular monolith + worker)",
+  "description": "HOWLOW \u2014 Telegram + Website unified auction platform (modular monolith + worker)",
   "license": "UNLICENSED",
   "engines": {
     "node": ">=22.0.0",
@@ -51,7 +51,8 @@
     "docker:reset": "docker compose down -v",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
     "verify:runtime": "node scripts/smoke.mjs",
-    "verify:auth": "node scripts/smoke-auth.mjs"
+    "verify:auth": "node scripts/smoke-auth.mjs",
+    "verify:wallet": "node scripts/smoke-wallet.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
