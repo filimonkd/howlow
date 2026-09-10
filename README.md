@@ -248,7 +248,7 @@ pairing. While disabled, the webhook route is not mounted at all.
 ### Migrations
 
 ```bash
-npm run migrate:create -- add_wallet_ledger   # scaffolds up/down SQL files
+npm run migrate:create -- add_wallet_ledger   # scaffolds 0011_add-wallet-ledger.sql
 npm run migrate:up
 npm run migrate:down
 ```

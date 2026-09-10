@@ -41,7 +41,7 @@
     "migrate": "node-pg-migrate -m migrations -j sql up",
     "migrate:up": "node-pg-migrate -m migrations -j sql up",
     "migrate:down": "node-pg-migrate -m migrations -j sql down",
-    "migrate:create": "node-pg-migrate -m migrations -j sql create",
+    "migrate:create": "node-pg-migrate -m migrations -j sql --migration-filename-format index create",
     "seed": "tsx seeds/dev.ts",
     "db:verify": "node scripts/verify-schema.mjs",
     "db:reset": "node-pg-migrate -m migrations -j sql down 999 && npm run migrate && npm run seed",
