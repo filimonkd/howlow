@@ -25,8 +25,8 @@ describe('wallet_entries is append-only', () => {
   it('refuses UPDATE and DELETE', async () => {
     const entry = await client.query<{ id: string }>(
       `INSERT INTO wallet_entries
-         (wallet_id, user_id, entry_type, currency, amount_minor, balance_after_minor)
-       VALUES ($1, $2, 'deposit', 'ETB', 5000, 5000) RETURNING id`,
+         (wallet_id, user_id, seq, entry_type, currency, amount_minor, balance_after_minor)
+       VALUES ($1, $2, (SELECT COALESCE(MAX(seq), 0) + 1 FROM wallet_entries WHERE wallet_id = $1), 'deposit', 'ETB', 5000, 5000) RETURNING id`,
       [fx.walletId, fx.userId],
     );
     const id = entry.rows[0]!.id;

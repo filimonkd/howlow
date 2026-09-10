@@ -45,11 +45,11 @@ export async function getMyTransactions(req: Request, res: Response): Promise<vo
   const query = walletTransactionsQuerySchema.parse(req.query);
   const page = await wallet.getTransactions(userId, {
     limit: query.limit,
-    ...(query.cursor !== undefined ? { cursor: wallet.decodeCursor(query.cursor) } : {}),
+    ...(query.cursor !== undefined ? { beforeSeq: wallet.decodeCursor(query.cursor) } : {}),
   });
   res.status(200).json({
     entries: page.entries.map(wallet.toWalletEntryDto),
-    nextCursor: page.nextCursor === null ? null : wallet.encodeCursor(page.nextCursor),
+    nextCursor: page.nextSeq === null ? null : wallet.encodeCursor(page.nextSeq),
   });
 }
 

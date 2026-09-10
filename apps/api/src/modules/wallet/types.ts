@@ -23,6 +23,8 @@ export interface WalletRecord {
 export interface WalletEntryRecord {
   readonly id: string;
   readonly walletId: string;
+  /** The wallet's movement number. The ledger's authoritative order. */
+  readonly seq: bigint;
   readonly type: WalletEntryType;
   readonly currency: Currency;
   /** Signed: positive credits, negative debits. */

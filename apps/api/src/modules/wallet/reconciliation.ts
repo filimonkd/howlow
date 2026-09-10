@@ -20,10 +20,14 @@ import * as repo from './walletRepository.js';
  *  - **Drift**: `SUM(amount_minor)` against `available_minor + reserved_minor`.
  *    Catches a balance update that did not match its entry.
  *  - **Running-balance breaks**: each entry's recorded `balance_after_minor`
- *    against the total replayed from the start of the ledger. Catches a ledger
- *    that happens to sum correctly but recorded the wrong balance somewhere in
- *    the middle — which is what an unserialised write produces, and the
- *    corruption most worth catching.
+ *    against the total replayed from the start of the ledger, in `seq` order.
+ *    Catches a ledger that happens to sum correctly but recorded the wrong
+ *    balance somewhere in the middle — which is what an unserialised write
+ *    produces, and the corruption most worth catching.
+ *  - **Sequence gaps**: `seq` is gap-free by construction, so a missing number
+ *    means a movement was recorded and then removed, or a balance moved without
+ *    one. Drift and the replay can both come out clean if an entry is deleted
+ *    along with the balance it produced; a gap cannot be hidden that way.
  */
 
 /**
@@ -43,16 +47,18 @@ export async function reconcileWallet(walletId: string): Promise<ReconciliationR
 
       const { ledgerTotalMinor, entryCount } = await repo.sumLedger(walletId, tx);
       const runningBalanceBreaks = await repo.countRunningBalanceBreaks(walletId, tx);
+      const sequenceGaps = await repo.countSequenceGaps(walletId, tx);
       const drift = ledgerTotalMinor - wallet.totalMinor;
 
       return {
         walletId,
-        consistent: drift === 0n && runningBalanceBreaks === 0,
+        consistent: drift === 0n && runningBalanceBreaks === 0 && sequenceGaps === 0,
         cachedTotalMinor: wallet.totalMinor.toString(),
         ledgerTotalMinor: ledgerTotalMinor.toString(),
         driftMinor: drift.toString(),
         entryCount,
         runningBalanceBreaks,
+        sequenceGaps,
         checkedAt: new Date().toISOString(),
       } satisfies ReconciliationReport;
     },
@@ -68,6 +74,7 @@ export async function reconcileWallet(walletId: string): Promise<ReconciliationR
       driftMinor: report.driftMinor,
       entryCount: report.entryCount,
       runningBalanceBreaks: report.runningBalanceBreaks,
+      sequenceGaps: report.sequenceGaps,
     });
   }
 

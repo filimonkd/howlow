@@ -228,10 +228,18 @@ export async function applyMovement(
   // 5. Write the cache and the truth together. The non-negative CHECK on both
   //    tables is the database's own last word behind this check.
   await updateWalletBalance(wallet.id, balanceAfterMinor, tx);
+  // The wallet's movement number, taken under the lock. `version` is bumped
+  // exactly once per movement by the update above, so `version + 1` is a
+  // gap-free counter in the order the balances were computed — which is what
+  // the ledger's replay must be ordered by. A timestamp would not do: now() is
+  // the transaction's start time, and two concurrent movements can start in the
+  // opposite order from the one the lock puts them in.
+  const seq = wallet.version + 1n;
   const entry = await insertEntry(
     {
       walletId: wallet.id,
       userId: wallet.userId,
+      seq,
       type: input.type,
       currency: wallet.currency,
       amountMinor: signedMinor,

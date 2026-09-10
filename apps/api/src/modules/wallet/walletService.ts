@@ -94,19 +94,15 @@ export async function getBalance(
 /** Ledger history, newest first, one page at a time. */
 export async function getTransactions(
   userId: string,
-  input: { limit: number; cursor?: { createdAt: Date; id: string } | undefined },
+  input: { limit: number; beforeSeq?: bigint | undefined },
   currency: Currency = DEFAULT_CURRENCY,
-): Promise<{ entries: WalletEntryRecord[]; nextCursor: { createdAt: Date; id: string } | null }> {
+): Promise<{ entries: WalletEntryRecord[]; nextSeq: bigint | null }> {
   const wallet = await getWallet(userId, currency);
   // One extra row tells us whether another page exists without a second query.
-  const rows = await repo.listEntries(wallet.id, input.limit + 1, input.cursor);
+  const rows = await repo.listEntries(wallet.id, input.limit + 1, input.beforeSeq);
   const entries = rows.slice(0, input.limit);
   const last = entries[entries.length - 1];
-  return {
-    entries,
-    nextCursor:
-      rows.length > input.limit && last ? { createdAt: last.createdAt, id: last.id } : null,
-  };
+  return { entries, nextSeq: rows.length > input.limit && last ? last.seq : null };
 }
 
 // ---------------------------------------------------------------------------
@@ -378,6 +374,7 @@ export function toWalletDto(wallet: WalletRecord): WalletDto {
 export function toWalletEntryDto(entry: WalletEntryRecord): WalletEntryDto {
   return {
     id: entry.id,
+    seq: entry.seq.toString(),
     type: entry.type,
     currency: entry.currency,
     amountMinor: entry.amountMinor.toString(),
@@ -390,23 +387,27 @@ export function toWalletEntryDto(entry: WalletEntryRecord): WalletEntryDto {
 }
 
 /**
- * Pagination cursors are opaque to clients: an encoded `(created_at, id)` pair,
- * not an offset. The ledger only grows at the head, so an offset would shift
- * under a reader between pages and show one entry twice or skip another.
+ * Pagination cursors are opaque to clients: an encoded ledger position, not an
+ * offset. The ledger only grows at the head, so an offset would shift under a
+ * reader between pages and show one entry twice or skip another.
+ *
+ * Encoded rather than the bare number so a client cannot come to depend on its
+ * meaning — the position is the ledger's business, and the next page is
+ * whatever the server says it is.
  */
-export function encodeCursor(cursor: { createdAt: Date; id: string }): string {
-  return Buffer.from(`${cursor.createdAt.toISOString()}|${cursor.id}`, 'utf8').toString('base64url');
+export function encodeCursor(seq: bigint): string {
+  return Buffer.from(`seq:${seq.toString()}`, 'utf8').toString('base64url');
 }
 
-export function decodeCursor(value: string): { createdAt: Date; id: string } {
-  const [timestamp, id] = Buffer.from(value, 'base64url').toString('utf8').split('|');
-  const createdAt = timestamp === undefined ? new Date(Number.NaN) : new Date(timestamp);
-  if (id === undefined || id === '' || Number.isNaN(createdAt.getTime())) {
+export function decodeCursor(value: string): bigint {
+  const decoded = Buffer.from(value, 'base64url').toString('utf8');
+  const match = /^seq:(\d{1,19})$/.exec(decoded);
+  if (!match?.[1]) {
     throw new AppError({
       code: 'VALIDATION_FAILED',
       message: 'Malformed wallet pagination cursor',
       publicMessage: 'That page cursor is not valid.',
     });
   }
-  return { createdAt, id };
+  return BigInt(match[1]);
 }

@@ -238,8 +238,8 @@ describe('wallet integrity', () => {
     const failure = await expectRejected(client, () =>
       client.query(
         `INSERT INTO wallet_entries
-           (wallet_id, user_id, entry_type, currency, amount_minor, balance_after_minor)
-         VALUES ($1, $2, 'adjustment', 'ETB', 0, 0)`,
+           (wallet_id, user_id, seq, entry_type, currency, amount_minor, balance_after_minor)
+         VALUES ($1, $2, (SELECT COALESCE(MAX(seq), 0) + 1 FROM wallet_entries WHERE wallet_id = $1), 'admin_credit', 'ETB', 0, 0)`,
         [fx.walletId, fx.userId],
       ),
     );
@@ -250,8 +250,8 @@ describe('wallet integrity', () => {
     const failure = await expectRejected(client, () =>
       client.query(
         `INSERT INTO wallet_entries
-           (wallet_id, user_id, entry_type, currency, amount_minor, balance_after_minor)
-         VALUES ($1, $2, 'bid_fee', 'ETB', -500, -500)`,
+           (wallet_id, user_id, seq, entry_type, currency, amount_minor, balance_after_minor)
+         VALUES ($1, $2, (SELECT COALESCE(MAX(seq), 0) + 1 FROM wallet_entries WHERE wallet_id = $1), 'bid_fee', 'ETB', -500, -500)`,
         [fx.walletId, fx.userId],
       ),
     );
@@ -261,15 +261,15 @@ describe('wallet integrity', () => {
   it('rejects a replayed ledger idempotency key', async () => {
     await client.query(
       `INSERT INTO wallet_entries
-         (wallet_id, user_id, entry_type, currency, amount_minor, balance_after_minor, idempotency_key)
-       VALUES ($1, $2, 'deposit', 'ETB', 10000, 10000, 'ledger-key-1')`,
+         (wallet_id, user_id, seq, entry_type, currency, amount_minor, balance_after_minor, idempotency_key)
+       VALUES ($1, $2, (SELECT COALESCE(MAX(seq), 0) + 1 FROM wallet_entries WHERE wallet_id = $1), 'deposit', 'ETB', 10000, 10000, 'ledger-key-1')`,
       [fx.walletId, fx.userId],
     );
     const failure = await expectRejected(client, () =>
       client.query(
         `INSERT INTO wallet_entries
-           (wallet_id, user_id, entry_type, currency, amount_minor, balance_after_minor, idempotency_key)
-         VALUES ($1, $2, 'deposit', 'ETB', 10000, 20000, 'ledger-key-1')`,
+           (wallet_id, user_id, seq, entry_type, currency, amount_minor, balance_after_minor, idempotency_key)
+         VALUES ($1, $2, (SELECT COALESCE(MAX(seq), 0) + 1 FROM wallet_entries WHERE wallet_id = $1), 'deposit', 'ETB', 10000, 20000, 'ledger-key-1')`,
         [fx.walletId, fx.userId],
       ),
     );
@@ -282,8 +282,8 @@ describe('wallet integrity', () => {
     const huge = '9007199254740993';
     const inserted = await client.query<{ balance_after_minor: string }>(
       `INSERT INTO wallet_entries
-         (wallet_id, user_id, entry_type, currency, amount_minor, balance_after_minor)
-       VALUES ($1, $2, 'deposit', 'ETB', $3, $3) RETURNING balance_after_minor`,
+         (wallet_id, user_id, seq, entry_type, currency, amount_minor, balance_after_minor)
+       VALUES ($1, $2, (SELECT COALESCE(MAX(seq), 0) + 1 FROM wallet_entries WHERE wallet_id = $1), 'deposit', 'ETB', $3, $3) RETURNING balance_after_minor`,
       [fx.walletId, fx.userId, huge],
     );
     // Returned as a string by the driver's BIGINT parser, so precision survives.

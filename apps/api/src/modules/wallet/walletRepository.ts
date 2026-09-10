@@ -146,6 +146,7 @@ export async function updateWalletBalance(
 interface EntryRow {
   id: string;
   wallet_id: string;
+  seq: string;
   entry_type: WalletEntryType;
   currency: Currency;
   amount_minor: string;
@@ -160,6 +161,7 @@ function toEntry(row: EntryRow): WalletEntryRecord {
   return {
     id: row.id,
     walletId: row.wallet_id,
+    seq: BigInt(row.seq),
     type: row.entry_type,
     currency: row.currency,
     amountMinor: BigInt(row.amount_minor),
@@ -171,7 +173,7 @@ function toEntry(row: EntryRow): WalletEntryRecord {
   };
 }
 
-const ENTRY_COLUMNS = `id, wallet_id, entry_type, currency, amount_minor,
+const ENTRY_COLUMNS = `id, wallet_id, seq, entry_type, currency, amount_minor,
   balance_after_minor, reference_type, reference_id, memo, created_at`;
 
 /** Append one ledger entry. Only ever called with the wallet already locked. */
@@ -179,6 +181,8 @@ export async function insertEntry(
   input: {
     walletId: string;
     userId: string;
+    /** The wallet's movement number, assigned under the lock. */
+    seq: bigint;
     type: WalletEntryType;
     currency: Currency;
     /** Already signed by the service, derived from the entry type. */
@@ -195,13 +199,14 @@ export async function insertEntry(
 ): Promise<WalletEntryRecord> {
   const { rows } = await tx.query<EntryRow>(
     `INSERT INTO wallet_entries
-       (wallet_id, user_id, entry_type, currency, amount_minor, balance_after_minor,
+       (wallet_id, user_id, seq, entry_type, currency, amount_minor, balance_after_minor,
         reference_type, reference_id, memo, idempotency_key, created_by, created_channel)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
      RETURNING ${ENTRY_COLUMNS}`,
     [
       input.walletId,
       input.userId,
+      input.seq.toString(),
       input.type,
       input.currency,
       input.amountMinor.toString(),
@@ -233,23 +238,23 @@ export async function findEntryByIdempotencyKey(
 /**
  * A page of ledger history, newest first.
  *
- * Keyset pagination on (created_at, id) rather than OFFSET: the ledger only
- * grows at the head, so an offset would shift under a reader and show the same
- * entry twice or skip one.
+ * Keyset pagination on `seq` rather than OFFSET: the ledger only grows at the
+ * head, so an offset would shift under a reader and show the same entry twice
+ * or skip one. `seq` rather than a timestamp because it is the ledger's
+ * authoritative order — see the note on the column in migration 0011.
  */
 export async function listEntries(
   walletId: string,
   limit: number,
-  cursor?: { createdAt: Date; id: string },
+  beforeSeq?: bigint,
   tx?: Tx,
 ): Promise<WalletEntryRecord[]> {
   const { rows } = await runner(tx).query<EntryRow>(
     `SELECT ${ENTRY_COLUMNS} FROM wallet_entries
-     WHERE wallet_id = $1
-       AND ($2::timestamptz IS NULL OR (created_at, id) < ($2::timestamptz, $3::uuid))
-     ORDER BY created_at DESC, id DESC
-     LIMIT $4`,
-    [walletId, cursor?.createdAt ?? null, cursor?.id ?? null, limit],
+     WHERE wallet_id = $1 AND ($2::bigint IS NULL OR seq < $2::bigint)
+     ORDER BY seq DESC
+     LIMIT $3`,
+    [walletId, beforeSeq?.toString() ?? null, limit],
   );
   return rows.map(toEntry);
 }
@@ -307,13 +312,17 @@ export async function sumLedger(walletId: string, tx?: Tx): Promise<LedgerTotals
  * wrong balance at some point in the middle — which is exactly what a
  * non-serialised write would produce, and exactly the corruption worth
  * catching.
+ *
+ * Ordered by `seq`, the order the balances were computed in. Ordering by
+ * `created_at` would report healthy wallets as broken, because now() is the
+ * transaction's start time and concurrent movements can start out of order.
  */
 export async function countRunningBalanceBreaks(walletId: string, tx?: Tx): Promise<number> {
   const { rows } = await runner(tx).query<{ breaks: string }>(
     `WITH replayed AS (
        SELECT id,
               balance_after_minor,
-              SUM(amount_minor) OVER (ORDER BY created_at, id
+              SUM(amount_minor) OVER (ORDER BY seq
                                       ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running
        FROM wallet_entries
        WHERE wallet_id = $1
@@ -322,6 +331,23 @@ export async function countRunningBalanceBreaks(walletId: string, tx?: Tx): Prom
     [walletId],
   );
   return Number(rows[0]?.breaks ?? '0');
+}
+
+/**
+ * Count missing positions in the wallet's movement sequence.
+ *
+ * `seq` is gap-free by construction — it is `version + 1` assigned under the
+ * wallet lock — so a gap means a movement was recorded and then removed, or
+ * a balance was changed without one. Neither is supposed to be possible, which
+ * is why it is worth checking.
+ */
+export async function countSequenceGaps(walletId: string, tx?: Tx): Promise<number> {
+  const { rows } = await runner(tx).query<{ gaps: string }>(
+    `SELECT COALESCE(MAX(seq) - COUNT(*), 0)::text AS gaps
+     FROM wallet_entries WHERE wallet_id = $1`,
+    [walletId],
+  );
+  return Number(rows[0]?.gaps ?? '0');
 }
 
 /** Every wallet id, oldest first, for the nightly sweep. */

@@ -68,6 +68,8 @@ export type WalletDto = z.infer<typeof walletSchema>;
 
 export const walletEntrySchema = z.object({
   id: z.uuid(),
+  /** The wallet's movement number, as a decimal string. The ledger's order. */
+  seq: z.string().regex(/^\d{1,19}$/),
   type: walletEntryTypeSchema,
   currency: currencySchema,
   /** Signed: positive credits the wallet, negative debits it. */
@@ -118,6 +120,8 @@ export const reconciliationSchema = z.object({
   entryCount: z.number().int().nonnegative(),
   /** Entries whose recorded balance_after does not match the replayed running total. */
   runningBalanceBreaks: z.number().int().nonnegative(),
+  /** Missing positions in the wallet's gap-free movement sequence. */
+  sequenceGaps: z.number().int().nonnegative(),
   checkedAt: z.iso.datetime(),
 });
 
