@@ -5,6 +5,7 @@ import { Button, Field, Notice, Panel, useForm } from '../components/AuthForms.j
 
 interface Props {
   readonly user: PublicUser;
+  readonly onOpenWallet: () => void;
   readonly onSignOut: () => void;
   readonly onUserChanged: (user: PublicUser) => void;
 }
@@ -13,7 +14,7 @@ interface Props {
  * Authenticated shell: who you are, your Telegram connection, and password
  * setup. Enough to verify Phase 2 end to end; the marketplace arrives later.
  */
-export function Dashboard({ user, onSignOut, onUserChanged }: Props): React.JSX.Element {
+export function Dashboard({ user, onOpenWallet, onSignOut, onUserChanged }: Props): React.JSX.Element {
   const [telegram, setTelegram] = useState<TelegramStatus>();
   const [deepLink, setDeepLink] = useState<string>();
   const [message, setMessage] = useState<string>();
@@ -57,7 +58,8 @@ export function Dashboard({ user, onSignOut, onUserChanged }: Props): React.JSX.
           <dt className="opacity-70">Password</dt>
           <dd>{user.hasPassword ? 'set' : 'not set'}</dd>
         </dl>
-        <div className="mt-4">
+        <div className="mt-4 flex gap-2">
+          <Button onClick={onOpenWallet}>Wallet</Button>
           <Button
             variant="secondary"
             onClick={() => {
