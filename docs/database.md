@@ -29,7 +29,7 @@ parser so those columns arrive as strings and can only become `bigint`.
 | Telegram   | `telegram_accounts`, `telegram_link_tokens`                                        |
 | Catalog    | `sellers`, `categories`, `products`, `product_images`                              |
 | Auction    | `auctions`, `auction_participants`, `bids`, `auction_results`                      |
-| Wallet     | `wallets`, `wallet_entries`                                                        |
+| Wallet     | `wallets`, `wallet_entries` — see [wallet.md](wallet.md)                           |
 | Commerce   | `orders`, `payments`, `payment_events`, `refunds`, `shipments`                     |
 | Platform   | `idempotency_keys`, `notifications`, `telegram_outbox`, `notification_preferences` |
 | Governance | `audit_logs`, `fraud_flags`                                                        |
@@ -78,6 +78,10 @@ a ledger mistake means writing a compensating entry, never editing history.
 | Wallet balances never negative                          | `wallets_available_non_negative`, `wallets_reserved_non_negative`         |
 | No zero-value ledger entry                              | `wallet_entries_amount_non_zero`                                          |
 | Ledger never leaves a negative balance                  | `wallet_entries_balance_non_negative`                                     |
+| Ledger position is unique per wallet                    | `wallet_entries_wallet_seq_unique`, `wallet_entries_seq_positive`         |
+| Wallet movements are idempotent                         | `wallet_entries_idempotency_key_unique`                                   |
+| One wallet per user per currency                        | `wallets_user_currency_key`                                               |
+| A frozen wallet always states why                       | `wallets_freeze_consistent`, `wallets_frozen_reason_not_blank`            |
 | Order total equals the sum of its parts                 | `orders_total_is_sum_of_parts`                                            |
 | A winner is all three facts or none                     | `auction_results_winner_complete`                                         |
 | One result per auction, ever                            | `auction_results_auction_id_key`                                          |

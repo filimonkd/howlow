@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { AUCTION_ALGORITHM_VERSION, type PublicUser } from '@howlow/shared';
 import * as api from '../lib/auth-api.js';
+import { useRoute } from '../lib/route.js';
 import { Auth } from './Auth.js';
 import { Dashboard } from './Dashboard.js';
+import { Wallet } from './Wallet.js';
 
 type State =
   | { readonly kind: 'loading' }
@@ -11,6 +13,7 @@ type State =
 
 export function App(): React.JSX.Element {
   const [state, setState] = useState<State>({ kind: 'loading' });
+  const [route, navigate] = useRoute();
 
   // A stored refresh token means the session may still be good: rotate it once
   // on load rather than making the user sign in again after every reload.
@@ -52,17 +55,28 @@ export function App(): React.JSX.Element {
         />
       )}
 
-      {state.kind === 'authenticated' && (
-        <Dashboard
-          user={state.user}
-          onSignOut={() => {
-            setState({ kind: 'anonymous' });
-          }}
-          onUserChanged={(user) => {
-            setState({ kind: 'authenticated', user });
-          }}
-        />
-      )}
+      {state.kind === 'authenticated' &&
+        (route === '/wallet' ? (
+          <Wallet
+            onBack={() => {
+              navigate('/');
+            }}
+          />
+        ) : (
+          <Dashboard
+            user={state.user}
+            onOpenWallet={() => {
+              navigate('/wallet');
+            }}
+            onSignOut={() => {
+              navigate('/');
+              setState({ kind: 'anonymous' });
+            }}
+            onUserChanged={(user) => {
+              setState({ kind: 'authenticated', user });
+            }}
+          />
+        ))}
 
       <footer className="mt-auto text-xs opacity-60">Auction algorithm: {AUCTION_ALGORITHM_VERSION}</footer>
     </main>

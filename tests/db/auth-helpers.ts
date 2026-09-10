@@ -72,6 +72,16 @@ export async function cleanupTestUsers(client: pg.Client): Promise<void> {
     await client.query(`DELETE FROM user_roles WHERE user_id IN (SELECT id FROM users WHERE phone LIKE $1)`, [
       like,
     ]);
+    // Activating an account creates its wallet, so the auth suite now leaves
+    // wallets behind too. Entries first: wallet_entries references both the
+    // wallet and the user.
+    await client.query(
+      `DELETE FROM wallet_entries WHERE user_id IN (SELECT id FROM users WHERE phone LIKE $1)`,
+      [like],
+    );
+    await client.query(`DELETE FROM wallets WHERE user_id IN (SELECT id FROM users WHERE phone LIKE $1)`, [
+      like,
+    ]);
     await client.query(`DELETE FROM users WHERE phone LIKE $1`, [like]);
     await client.query('COMMIT');
   } catch (error) {

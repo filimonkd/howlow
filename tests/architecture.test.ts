@@ -21,6 +21,7 @@ const written = new Set<string>();
 const TELEGRAM_FIXTURE = 'apps/api/src/channels/telegram/handlers/arch-fixture.ts';
 const HTTP_FIXTURE = 'apps/api/src/channels/http/controllers/arch-fixture.ts';
 const MODULE_FIXTURE = 'apps/api/src/modules/health/arch-fixture.ts';
+const WORKER_FIXTURE = 'apps/worker/src/jobs/arch-fixture.ts';
 
 async function lintFixture(relativePath: string, code: string): Promise<string> {
   const absolute = join(ROOT, relativePath);
@@ -41,6 +42,39 @@ afterAll(() => {
 });
 
 describe('architecture boundaries', () => {
+  /**
+   * The wallet's SQL is reachable from one directory only. That is what makes
+   * "no balance change without its ledger entry in the same transaction" a
+   * property of the system rather than a convention, so the rule that keeps it
+   * that way is worth proving.
+   */
+  it('stops a channel from reaching wallet SQL directly', async () => {
+    for (const fixture of [HTTP_FIXTURE, TELEGRAM_FIXTURE]) {
+      const depth = fixture.includes('/http/') ? '../../../' : '../../../';
+      const output = await lintFixture(
+        fixture,
+        `import { updateWalletBalance } from '${depth}modules/wallet/walletRepository.js';\nexport const fixture = updateWalletBalance;\n`,
+      );
+      expect(output).toMatch(/Only modules\/wallet may touch wallet SQL/);
+    }
+  });
+
+  it('stops another module from reaching wallet SQL directly', async () => {
+    const output = await lintFixture(
+      MODULE_FIXTURE,
+      "import { insertEntry } from '../wallet/walletRepository.js';\nexport const fixture = insertEntry;\n",
+    );
+    expect(output).toMatch(/Only modules\/wallet may touch wallet SQL/);
+  });
+
+  it('stops the worker from reaching wallet SQL directly', async () => {
+    const output = await lintFixture(
+      WORKER_FIXTURE,
+      "import { updateWalletBalance } from '@howlow/api/modules/wallet/walletRepository.js';\nexport const fixture = updateWalletBalance;\n",
+    );
+    expect(output).toMatch(/Only modules\/wallet may touch wallet SQL/);
+  });
+
   it('stops the Telegram channel from importing the database', async () => {
     const output = await lintFixture(
       TELEGRAM_FIXTURE,

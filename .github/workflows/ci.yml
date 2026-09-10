@@ -113,6 +113,14 @@ jobs:
         env:
           TELEGRAM_BOT_USERNAME: howlow_ci_bot
 
+      # The database suite calls the wallet module directly, which is where
+      # locking and ledger behaviour belong. This drives the same operations
+      # over HTTP, so a controller that wires the module up wrongly fails here.
+      - name: Verify the wallet surface end to end
+        run: npm run verify:wallet
+        env:
+          TELEGRAM_BOT_USERNAME: howlow_ci_bot
+
   secret-scan:
     name: Secret scan
     runs-on: ubuntu-latest

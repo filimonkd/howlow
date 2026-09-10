@@ -274,6 +274,26 @@ npm run verify:auth   # drive the whole auth surface over HTTP against a live AP
 the Telegram linking flow, refresh-token rotation and reuse detection, and every
 security decision behind them.
 
+### Wallet and ledger
+
+Money is a BIGINT count of minor units in PostgreSQL, a `bigint` in TypeScript
+and a decimal **string** on the wire. No floating-point value ever touches a
+monetary amount.
+
+`wallet_entries` is an append-only ledger and the truth;
+`wallets.available_minor` is a cache maintained in the same transaction as the
+entry that changed it. Every movement goes through one code path, which locks
+the wallet row, and nothing outside `modules/wallet` may write wallet SQL — a
+lint rule, not a convention.
+
+```bash
+npm run test:db     # includes the wallet concurrency suite
+```
+
+[docs/wallet.md](docs/wallet.md) documents the ledger, the locking strategy and
+why it cannot deadlock against later phases, idempotency, reconciliation,
+freezing, the error codes and the API.
+
 ---
 
 ## Branch strategy
@@ -306,11 +326,11 @@ ready for review. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 | Phase | Scope                             | State       |
 | ----- | --------------------------------- | ----------- |
-| **0** | Project foundation                | **this PR** |
-| 1     | Database + migrations             | next        |
-| 2     | Authentication + unified identity | planned     |
-| 3     | Wallet + ledger                   | planned     |
-| 4     | Catalog + auctions                | planned     |
+| 0     | Project foundation                | done        |
+| 1     | Database + migrations             | done        |
+| 2     | Authentication + unified identity | done        |
+| **3** | Wallet + ledger                   | **this PR** |
+| 4     | Catalog + auctions                | next        |
 | 5     | Core bidding engine               | planned     |
 | 6     | Auction closing + `LUB_V1`        | planned     |
 | 7     | Website MVP                       | planned     |
@@ -322,5 +342,6 @@ ready for review. See [CONTRIBUTING.md](CONTRIBUTING.md).
 | 13    | Testing + security hardening      | planned     |
 | 14    | Production deployment + beta      | planned     |
 
-Phase 0 deliberately contains **no** auction, bidding, wallet, payment or
-`LUB_V1` logic. It establishes the foundation those phases are built on.
+Each phase contains only its own scope. Phase 3 adds the wallet and its ledger
+and deliberately contains **no** catalog, auction, bidding, `LUB_V1`, payment
+provider or shipping logic — those phases are built on top of it.
