@@ -58,20 +58,33 @@ export function isUuid(value: string): boolean {
   return UUID_RE.test(value);
 }
 
-/** An opaque `<timestamp>|<id>` pagination cursor. */
-export function encodeCursor(input: { at: Date; id: string }): string {
-  return Buffer.from(`${input.at.toISOString()}|${input.id}`, 'utf8').toString('base64url');
+/**
+ * An opaque `<timestamp>|<id>` pagination cursor.
+ *
+ * The timestamp stays a string the whole way through, and is never parsed into
+ * a `Date`. `timestamptz` keeps microseconds and a `Date` only milliseconds, so
+ * parsing the cursor would move it to a different instant than the row it came
+ * from — and in a keyset comparison that silently skips the rows sharing that
+ * millisecond, or, in an ascending sort, returns them for ever. The
+ * repositories render it at full precision and hand it back to PostgreSQL as
+ * `$n::timestamptz`; this layer only carries it.
+ */
+const CURSOR_TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
+
+export function encodeCursor(input: { at: string; id: string }): string {
+  return Buffer.from(`${input.at}|${input.id}`, 'utf8').toString('base64url');
 }
 
-export function decodeCursor(value: string): { at: Date; id: string } {
+export function decodeCursor(value: string): { at: string; id: string } {
   const [timestamp, id] = Buffer.from(value, 'base64url').toString('utf8').split('|');
-  const at = timestamp === undefined ? new Date(Number.NaN) : new Date(timestamp);
-  if (id === undefined || id === '' || Number.isNaN(at.getTime())) {
+  // Validated here rather than at the query: an unparseable timestamp reaching
+  // `::timestamptz` would surface as a 500 instead of a 400.
+  if (timestamp === undefined || !CURSOR_TIMESTAMP_RE.test(timestamp) || id === undefined || !isUuid(id)) {
     throw new AppError({
       code: 'VALIDATION_FAILED',
       message: 'Malformed pagination cursor',
       publicMessage: 'That page cursor is not valid.',
     });
   }
-  return { at, id };
+  return { at: timestamp, id };
 }

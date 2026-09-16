@@ -278,6 +278,34 @@ that produced it.
 
 Sorts: `ending_soon` (default), `starting_soon`, `newest`.
 
+**The cursor timestamp is carried as text at full microsecond precision, and is
+never parsed into a `Date`.** `timestamptz` stores microseconds; a JavaScript
+`Date` stores milliseconds. A cursor that passes through a `Date` therefore
+names a coarser instant than the row it was taken from, and the keyset
+comparison then misbehaves in whichever direction the sort runs:
+
+| Sort direction                       | Effect of a millisecond-truncated cursor                                                                                               |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| DESC (`newest`)                      | the cursor sorts _after_ same-millisecond rows with smaller microseconds — they are skipped                                            |
+| ASC (`ending_soon`, `starting_soon`) | the cursor still precedes them, including the row it came from — they repeat, and a page filled by a single millisecond never advances |
+
+So the repositories render the value with
+`to_char(<column> AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')` and
+compare it back as `$n::timestamptz`. `to_char` rather than `::text` because
+the cast's output follows the session's `DateStyle`, and a cursor handed to a
+client outlives the session that produced it. The comparison stays a plain
+`(column, id) < ($n::timestamptz, $m::uuid)`, so the index is still used.
+
+The cursor is client-supplied, so its timestamp is validated against a strict
+pattern before it reaches the query: an unparseable value would otherwise
+surface as a 500 rather than a 400.
+
+Both failure modes are pinned by tests — `tests/db/catalog.test.ts` for the
+descending skip, `tests/db/auction-lifecycle.test.ts` for the ascending
+non-termination — and `scripts/smoke-catalog.mjs` walks every sort to the end
+over HTTP with `limit=1`, which is the only place a cursor that loses precision
+between the repository and the wire would show.
+
 ## Error codes
 
 | Code                             | HTTP | Meaning                                     |

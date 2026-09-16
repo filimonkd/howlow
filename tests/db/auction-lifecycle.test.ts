@@ -621,6 +621,50 @@ describe('public visibility', () => {
   });
 
   /**
+   * The same microsecond-versus-millisecond cursor defect the product listing
+   * had, from the other direction. Ascending sorts do not skip on a truncated
+   * cursor — they repeat, because a cursor rounded down still precedes the
+   * rows sharing its millisecond, including the one it was taken from. A page
+   * filled entirely by one millisecond would then never advance, so this
+   * asserts termination and no duplicates, not just the count.
+   */
+  it('pages an ascending sort across auctions ending within the same millisecond', async () => {
+    const made = [];
+    for (let index = 0; index < 4; index += 1) made.push(await draft());
+    const ends = [
+      '2027-01-01T00:00:00.400000Z',
+      '2027-01-01T00:00:00.500100Z', // last row of page one
+      '2027-01-01T00:00:00.500900Z', // the row a truncated cursor returned twice
+      '2027-01-01T00:00:00.600000Z',
+    ];
+    for (const [index, { auctionId }] of made.entries()) {
+      await auctions.submitForApproval({ auctionId, sellerId: seller.sellerId });
+      await auctions.approve({ auctionId, actorUserId: manager });
+      // Written directly: ends_at is immutable through the service once
+      // approved, and what is under test is the cursor, not the transition.
+      await db.query('UPDATE auctions SET ends_at = $2::timestamptz WHERE id = $1', [auctionId, ends[index]]);
+    }
+
+    const wanted = new Set(made.map((entry) => entry.auctionId));
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    for (let guard = 0; guard < 50; guard += 1) {
+      const page = await auctions.listPublicAuctions({
+        sort: 'ending_soon',
+        limit: 2,
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      seen.push(...page.auctions.map((auction) => auction.id).filter((id) => wanted.has(id)));
+      if (page.nextCursor === null) break;
+      cursor = auctions.encodeCursor(page.nextCursor);
+      if (guard === 49) throw new Error('pagination did not terminate');
+    }
+
+    expect(new Set(seen)).toEqual(wanted);
+    expect(seen).toHaveLength(4);
+  });
+
+  /**
    * The public payload carries nothing a bidder could use to work out the
    * lowest unique bid.
    */

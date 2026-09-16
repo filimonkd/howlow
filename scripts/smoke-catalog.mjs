@@ -463,6 +463,30 @@ async function main() {
   );
   console.log('smoke-catalog: the approved auction is public, and leaks no bid data');
 
+  // --- following a real cursor, on every sort -----------------------------
+  // Only a walk over the wire catches a cursor that loses precision: the
+  // repositories page on a microsecond timestamp and a cursor rounded to the
+  // millisecond silently skips rows, or in an ascending sort returns them for
+  // ever. `limit=1` forces a page boundary at every row.
+  for (const sort of ['newest', 'ending_soon', 'starting_soon']) {
+    const seen = [];
+    let cursor;
+    let pages = 0;
+    for (;;) {
+      const query = `/auctions?sort=${sort}&limit=1${cursor === undefined ? '' : `&cursor=${encodeURIComponent(cursor)}`}`;
+      const page = await call(query);
+      check(page.status === 200, `GET ${query} returned ${page.status}`);
+      seen.push(...page.body.auctions.map((item) => item.id));
+      pages += 1;
+      check(pages <= 60, `paging ${sort} did not terminate after ${pages} pages`);
+      if (page.body.nextCursor === null || page.body.nextCursor === undefined) break;
+      cursor = page.body.nextCursor;
+    }
+    check(new Set(seen).size === seen.length, `paging ${sort} returned an auction twice`);
+    check(seen.includes(auctionId), `paging ${sort} skipped the auction under test`);
+  }
+  console.log('smoke-catalog: every sort pages to the end without repeating or skipping');
+
   // --- both channels reach the same auction -------------------------------
   const before = sent.length;
   check((await deliverUpdate(message('/auctions'))) === 200, 'the webhook rejected /auctions');

@@ -32,6 +32,7 @@ import {
   unauthorizedCatalogOperation,
 } from './errors.js';
 import * as repo from './catalogRepository.js';
+import type { ProductCursor } from './catalogRepository.js';
 import {
   availableQuantity,
   type CategoryRecord,
@@ -621,7 +622,7 @@ export async function archiveProduct(input: {
 
 export interface ProductPageResult {
   readonly products: ProductWithImages[];
-  readonly nextCursor: { createdAt: Date; id: string } | null;
+  readonly nextCursor: ProductCursor | null;
 }
 
 export async function listProducts(filters: {
@@ -629,7 +630,7 @@ export async function listProducts(filters: {
   status?: ProductStatus | undefined;
   categorySlug?: string | undefined;
   limit: number;
-  cursor?: { createdAt: Date; id: string } | undefined;
+  cursor?: ProductCursor | undefined;
 }): Promise<ProductPageResult> {
   const page = await repo.listProducts(filters);
   return { products: await repo.withImages(page.products), nextCursor: page.nextCursor };

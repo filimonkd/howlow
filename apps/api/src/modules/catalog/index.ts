@@ -34,6 +34,7 @@ export {
   updateProduct,
 } from './catalogService.js';
 export type { ProductPageResult } from './catalogService.js';
+export type { ProductCursor } from './catalogRepository.js';
 
 export { reconcileProductInventory, releaseUnit, reserveUnit, reserveUnitStandalone } from './inventory.js';
 export type { InventoryReport, ReleaseOutcome, ReservationOutcome } from './inventory.js';

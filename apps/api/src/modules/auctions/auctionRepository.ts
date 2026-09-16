@@ -122,12 +122,29 @@ const DISPLAY_COLUMNS = `s.display_name AS seller_name, c.slug AS category_slug,
   p.title AS product_title, p.description AS product_description, p.brand AS product_brand,
   p.condition AS product_condition, p.specs AS product_specs, p.retail_price_minor`;
 
-const AUCTION_SELECT = `
-  SELECT ${AUCTION_COLUMNS}, ${DISPLAY_COLUMNS}
+/** Split out so the listing can add a projection of its own without repeating the joins. */
+const AUCTION_FROM = `
     FROM auctions a
     JOIN products p ON p.id = a.product_id
     JOIN sellers s ON s.id = a.seller_id
     LEFT JOIN categories c ON c.id = p.category_id`;
+
+const AUCTION_SELECT = `
+  SELECT ${AUCTION_COLUMNS}, ${DISPLAY_COLUMNS}${AUCTION_FROM}`;
+
+/**
+ * A keyset timestamp at full precision, rendered by the database.
+ *
+ * `timestamptz` keeps microseconds; a JavaScript `Date` keeps milliseconds. A
+ * cursor that passes through a `Date` therefore names a different instant than
+ * the row it came from, and the keyset comparison then skips the rows sharing
+ * that millisecond (descending) or returns them again (ascending). `to_char`
+ * rather than `::text` because the cast's format follows the session's
+ * `DateStyle`, and a cursor handed to a client outlives the session that made
+ * it.
+ */
+const keysetText = (column: string): string =>
+  `to_char(${column} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
 
 export async function findById(id: string, tx?: Tx): Promise<AuctionWithDisplay | undefined> {
   const { rows } = await runner(tx).query<AuctionRow & DisplayRow>(`${AUCTION_SELECT} WHERE a.id = $1`, [id]);
@@ -400,7 +417,7 @@ export async function list(
     sellerId?: string | undefined;
     sort: AuctionSort;
     limit: number;
-    cursor?: { value: Date; id: string } | undefined;
+    cursor?: { value: string; id: string } | undefined;
   },
   tx?: Tx,
 ): Promise<AuctionPage> {
@@ -413,8 +430,9 @@ export async function list(
   const direction = filters.sort === 'newest' ? 'DESC' : 'ASC';
   const comparison = direction === 'DESC' ? '<' : '>';
 
-  const { rows } = await runner(tx).query<AuctionRow & DisplayRow>(
-    `${AUCTION_SELECT}
+  const { rows } = await runner(tx).query<AuctionRow & DisplayRow & { cursor_at: string }>(
+    `SELECT ${AUCTION_COLUMNS}, ${DISPLAY_COLUMNS}, ${keysetText(sortColumn)} AS cursor_at
+      ${AUCTION_FROM}
       WHERE ($1::auction_status[] IS NULL OR a.status = ANY($1::auction_status[]))
         AND ($2::text IS NULL OR c.slug = $2::text)
         AND ($3::uuid IS NULL OR a.seller_id = $3::uuid)
@@ -433,15 +451,9 @@ export async function list(
   );
 
   const auctions = rows.slice(0, filters.limit).map(toDisplay);
-  const last = auctions[auctions.length - 1];
+  const last = rows[auctions.length - 1];
   if (rows.length <= filters.limit || !last) return { auctions, nextCursor: null };
-
-  const sortValue = {
-    ending_soon: last.endsAt,
-    starting_soon: last.startsAt,
-    newest: last.createdAt,
-  }[filters.sort];
-  return { auctions, nextCursor: `${sortValue.toISOString()}|${last.id}` };
+  return { auctions, nextCursor: `${last.cursor_at}|${last.id}` };
 }
 
 /**

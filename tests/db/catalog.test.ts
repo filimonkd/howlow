@@ -389,27 +389,62 @@ describe('products', () => {
     expect(reduced.stockQuantity).toBe(1);
   });
 
+  /** Walk every page, following the cursor exactly as a client would. */
+  async function pageThrough(sellerId: string, limit: number): Promise<string[]> {
+    const seen: string[] = [];
+    let cursor: catalog.ProductCursor | undefined;
+    for (let guard = 0; guard < 50; guard += 1) {
+      const page = await catalog.listProducts({ sellerId, limit, cursor });
+      seen.push(...page.products.map((product) => product.id));
+      if (page.nextCursor === null) return seen;
+      cursor = page.nextCursor;
+    }
+    throw new Error('pagination did not terminate');
+  }
+
   it('pages without repeating or skipping a product', async () => {
     const pagingSeller = await createSeller(db);
     for (let index = 0; index < 7; index += 1) {
       await createProductRow(db, { sellerId: pagingSeller.sellerId });
     }
 
-    const seen: string[] = [];
-    let cursor: { createdAt: Date; id: string } | undefined;
-    for (;;) {
-      const page = await catalog.listProducts({
-        sellerId: pagingSeller.sellerId,
-        limit: 3,
-        cursor,
-      });
-      seen.push(...page.products.map((product) => product.id));
-      if (page.nextCursor === null) break;
-      cursor = page.nextCursor;
-    }
-
+    const seen = await pageThrough(pagingSeller.sellerId, 3);
     expect(seen).toHaveLength(7);
     expect(new Set(seen).size).toBe(7);
+  });
+
+  /**
+   * The regression this pins: `timestamptz` keeps microseconds and a
+   * JavaScript `Date` keeps milliseconds, so a cursor round-tripped through a
+   * `Date` named a coarser instant than the row it came from and the rows
+   * sharing that millisecond were dropped from the next page. Inserting
+   * explicit microsecond timestamps makes it deterministic; created naturally
+   * it only showed up when a page boundary happened to land inside a
+   * millisecond, which is why it read as a flaky test.
+   */
+  it('pages across products created within the same millisecond', async () => {
+    const pagingSeller = await createSeller(db);
+    const ids: string[] = [];
+    for (let index = 0; index < 4; index += 1) {
+      ids.push(await createProductRow(db, { sellerId: pagingSeller.sellerId }));
+    }
+    // Descending order, with a same-millisecond pair straddling the boundary of
+    // the first page: the truncated cursor taken from .500900 sorted after
+    // .500100, so the second page began past it. The pair has to straddle the
+    // boundary — a pair inside one page is unaffected.
+    const stamps = [
+      '2026-01-01T00:00:00.600000Z',
+      '2026-01-01T00:00:00.500900Z', // last row of page one
+      '2026-01-01T00:00:00.500100Z', // the row that used to disappear
+      '2026-01-01T00:00:00.400000Z',
+    ];
+    for (const [index, id] of ids.entries()) {
+      await db.query('UPDATE products SET created_at = $2::timestamptz WHERE id = $1', [id, stamps[index]]);
+    }
+
+    const seen = await pageThrough(pagingSeller.sellerId, 2);
+    expect(new Set(seen)).toEqual(new Set(ids));
+    expect(seen).toHaveLength(4);
   });
 });
 
