@@ -30,6 +30,7 @@ parser so those columns arrive as strings and can only become `bigint`.
 | Catalog    | `sellers`, `categories`, `products`, `product_images`                              |
 | Auction    | `auctions`, `auction_participants`, `bids`, `auction_results`                      |
 | Wallet     | `wallets`, `wallet_entries` — see [wallet.md](wallet.md)                           |
+| Inventory  | `inventory_reservations` — see [catalog.md](catalog.md)                            |
 | Commerce   | `orders`, `payments`, `payment_events`, `refunds`, `shipments`                     |
 | Platform   | `idempotency_keys`, `notifications`, `telegram_outbox`, `notification_preferences` |
 | Governance | `audit_logs`, `fraud_flags`                                                        |
@@ -82,6 +83,13 @@ a ledger mistake means writing a compensating entry, never editing history.
 | Wallet movements are idempotent                         | `wallet_entries_idempotency_key_unique`                                   |
 | One wallet per user per currency                        | `wallets_user_currency_key`                                               |
 | A frozen wallet always states why                       | `wallets_freeze_consistent`, `wallets_frozen_reason_not_blank`            |
+| Reserved units never exceed the stock that exists       | `products_reserved_within_stock`, `products_reserved_non_negative`        |
+| One live inventory hold per auction                     | `inventory_reservations_held_key`                                         |
+| SKUs are unique per seller, not globally                | `products_seller_sku_key`                                                 |
+| One unit per auction for the MVP                        | `auctions_quantity_is_one`                                                |
+| The bid ladder is walkable end to end                   | `auctions_bid_range_divisible`                                            |
+| A suspended auction records why and what it interrupted | `auctions_suspended_consistent`                                           |
+| Live auction terms are historical fact                  | `auctions_enforce_immutability` (trigger)                                 |
 | Order total equals the sum of its parts                 | `orders_total_is_sum_of_parts`                                            |
 | A winner is all three facts or none                     | `auction_results_winner_complete`                                         |
 | One result per auction, ever                            | `auction_results_auction_id_key`                                          |

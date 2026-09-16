@@ -294,6 +294,35 @@ npm run test:db     # includes the wallet concurrency suite
 why it cannot deadlock against later phases, idempotency, reconciliation,
 freezing, the error codes and the API.
 
+### Catalog and auctions
+
+Sellers, categories, products, images, and the auction lifecycle:
+
+```
+draft → pending_approval → scheduled → live → closing → calculating → completed
+```
+
+Every status change goes through one lifecycle service consulting one transition
+table, so an impossible move is refused in one place rather than by a check each
+caller has to remember. The platform's lock order is **auction → product →
+wallet**, which is why Phase 5's bidding transaction cannot deadlock against
+inventory reservation.
+
+PostgreSQL is the clock of record: the worker re-reads `now()` and refuses to
+open or close an auction early. A safety sweeper asks the database every thirty
+seconds which auctions are due, so a missed queue job delays an auction rather
+than losing it.
+
+```bash
+npm run test:db          # lifecycle, catalog and concurrency suites
+npm run verify:catalog   # both channel surfaces end to end
+```
+
+[docs/catalog.md](docs/catalog.md) documents sellers, categories, products,
+images and inventory reservation; [docs/auctions.md](docs/auctions.md) documents
+the lifecycle, the transition table, scheduling, locking, discovery and the
+Phase 4/5 boundary.
+
 ---
 
 ## Branch strategy
@@ -329,9 +358,9 @@ ready for review. See [CONTRIBUTING.md](CONTRIBUTING.md).
 | 0     | Project foundation                | done        |
 | 1     | Database + migrations             | done        |
 | 2     | Authentication + unified identity | done        |
-| **3** | Wallet + ledger                   | **this PR** |
-| 4     | Catalog + auctions                | next        |
-| 5     | Core bidding engine               | planned     |
+| 3     | Wallet + ledger                   | done        |
+| **4** | Catalog + auctions                | **this PR** |
+| 5     | Core bidding engine               | next        |
 | 6     | Auction closing + `LUB_V1`        | planned     |
 | 7     | Website MVP                       | planned     |
 | 8     | Telegram Bot MVP                  | planned     |
@@ -342,6 +371,8 @@ ready for review. See [CONTRIBUTING.md](CONTRIBUTING.md).
 | 13    | Testing + security hardening      | planned     |
 | 14    | Production deployment + beta      | planned     |
 
-Each phase contains only its own scope. Phase 3 adds the wallet and its ledger
-and deliberately contains **no** catalog, auction, bidding, `LUB_V1`, payment
-provider or shipping logic — those phases are built on top of it.
+Each phase contains only its own scope. Phase 4 adds the catalog and the auction
+lifecycle and deliberately contains **no** bidding, `LUB_V1`, winner
+calculation, payment provider or shipping logic. An auction can go live with
+zero bids and reach `closing` without anything being decided; Phase 5 adds bid
+submission and Phase 6 the result.
