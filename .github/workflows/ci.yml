@@ -121,6 +121,23 @@ jobs:
         env:
           TELEGRAM_BOT_USERNAME: howlow_ci_bot
 
+      # Both channels over their real transports: the HTTP surface, and the
+      # Telegram webhook driven with real update payloads against a stub Bot
+      # API. Module tests cannot see channel wiring — this is what found that
+      # the webhook had no body parser and that a draft auction was publicly
+      # readable.
+      - name: Verify the catalog and auction channels end to end
+        run: npm run verify:catalog
+        env:
+          TELEGRAM_BOT_USERNAME: howlow_ci_bot
+
+      # The SigV4 presigner against botocore, AWS's own implementation. Skips
+      # cleanly when botocore is absent.
+      - name: Verify image presigning against botocore
+        run: |
+          python3 -m pip install --quiet botocore || true
+          npm run verify:sigv4
+
   secret-scan:
     name: Secret scan
     runs-on: ubuntu-latest
