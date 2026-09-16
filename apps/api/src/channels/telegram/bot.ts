@@ -20,7 +20,10 @@ export function getBot(): Bot {
     throw new Error('Telegram channel is disabled; set TELEGRAM_ENABLED=true and TELEGRAM_BOT_TOKEN');
   }
 
-  bot = new Bot(env.TELEGRAM_BOT_TOKEN);
+  bot = new Bot(env.TELEGRAM_BOT_TOKEN, {
+    // Telegram's own servers unless pointed elsewhere; see TELEGRAM_API_ROOT.
+    client: { apiRoot: env.TELEGRAM_API_ROOT },
+  });
   registerHandlers(bot);
 
   bot.catch((error) => {

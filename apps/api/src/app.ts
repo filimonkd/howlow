@@ -31,8 +31,9 @@ export function createApp(): Express {
   app.use(requestId);
   app.use(pinoHttp({ logger: getLogger(), customProps: (req) => ({ requestId: req.id }) }));
 
-  // Telegram is mounted before the JSON body parser: grammY consumes the raw
-  // webhook body itself.
+  // Telegram is mounted ahead of the global body parser so a webhook delivery
+  // is handled before anything else looks at it. The webhook route carries its
+  // own JSON parser, because grammY's express adapter reads `req.body`.
   app.use(createTelegramRouter());
 
   app.use(express.json({ limit: '256kb' }));

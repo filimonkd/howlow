@@ -52,7 +52,9 @@
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
     "verify:runtime": "node scripts/smoke.mjs",
     "verify:auth": "node scripts/smoke-auth.mjs",
-    "verify:wallet": "node scripts/smoke-wallet.mjs"
+    "verify:wallet": "node scripts/smoke-wallet.mjs",
+    "verify:sigv4": "node scripts/verify-sigv4.mjs",
+    "verify:catalog": "node scripts/smoke-catalog.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

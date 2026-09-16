@@ -6,8 +6,12 @@
  * no processor yet is a placeholder for a later phase.
  */
 export const QUEUE_NAMES = {
-  /** Closes auctions whose deadline has passed, then runs LUB_V1. (Phase 6) */
-  auctionClose: 'auction.close',
+  /** Opens auctions at their start time and closes them at their deadline. */
+  auctionLifecycle: 'auction.lifecycle',
+  /** Repairs lifecycle transitions the scheduled jobs missed. Every 30s. */
+  auctionSweeper: 'auction.sweeper',
+  /** Runs LUB_V1 on a closed auction and writes its result. (Phase 6) */
+  auctionResults: 'auction.results',
   /** Proves every wallet's cached balance still equals its ledger. Nightly. */
   walletReconcile: 'wallet.reconcile',
   /** Outbound notifications for both channels. (Phase 11) */

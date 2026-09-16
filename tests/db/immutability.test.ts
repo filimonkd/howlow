@@ -104,7 +104,7 @@ describe('auction_results is immutable', () => {
          (product_id, seller_id, title, bid_fee_minor, min_bid_minor, max_bid_minor,
           max_bids_per_user, starts_at, ends_at, status, closed_at)
        VALUES ($1, $2, 'half winner', 500, 100, 50000, 10,
-               now() - interval '2 hours', now() - interval '1 hour', 'closed', now())
+               now() - interval '2 hours', now() - interval '1 hour', 'calculating', now())
        RETURNING id`,
       [fx.productId, fx.sellerId],
     );
@@ -122,14 +122,14 @@ describe('auction_results is immutable', () => {
   });
 });
 
-describe('closed auctions keep their terms', () => {
-  it('refuses to re-price or re-time an auction after it closed', async () => {
+describe('auctions past bidding keep their terms', () => {
+  it('refuses to re-price or re-time an auction once bidding has ended', async () => {
     const closed = await client.query<{ id: string }>(
       `INSERT INTO auctions
          (product_id, seller_id, title, bid_fee_minor, min_bid_minor, max_bid_minor,
           max_bids_per_user, starts_at, ends_at, status, closed_at)
-       VALUES ($1, $2, 'already closed', 500, 100, 50000, 10,
-               now() - interval '2 hours', now() - interval '1 hour', 'closed', now())
+       VALUES ($1, $2, 'already decided', 500, 100, 50000, 10,
+               now() - interval '2 hours', now() - interval '1 hour', 'calculating', now())
        RETURNING id`,
       [fx.productId, fx.sellerId],
     );
@@ -145,15 +145,17 @@ describe('closed auctions keep their terms', () => {
     );
     expect(onDeadline.message).toMatch(/immutable/);
 
-    // Settling a closed auction is a legitimate status move and must still work.
-    const settled = await client.query(`UPDATE auctions SET status = 'settled' WHERE id = $1`, [id]);
+    // Completing a decided auction is a legitimate status move and must still
+    // work. (Phase 4 renamed 'closed' to 'calculating' and 'settled' to
+    // 'completed'; the guarantee is unchanged.)
+    const settled = await client.query(`UPDATE auctions SET status = 'completed' WHERE id = $1`, [id]);
     expect(settled.rowCount).toBe(1);
 
-    // But a settled auction cannot be reopened.
+    // But a completed auction cannot be reopened.
     const onReopen = await expectRejected(client, () =>
       client.query(`UPDATE auctions SET status = 'live' WHERE id = $1`, [id]),
     );
-    expect(onReopen.message).toMatch(/settled/);
+    expect(onReopen.message).toMatch(/completed and cannot change status/);
   });
 });
 

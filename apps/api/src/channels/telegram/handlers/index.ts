@@ -3,6 +3,7 @@ import { AppError, formatMoney, money, type WalletEntryType } from '@howlow/shar
 import * as auth from '../../../modules/auth/index.js';
 import * as wallet from '../../../modules/wallet/index.js';
 import { getLogger } from '../../../shared/index.js';
+import { registerAuctionHandlers } from './auctions/index.js';
 
 /**
  * Telegram command handlers.
@@ -42,6 +43,10 @@ async function replyWithError(ctx: Context, error: unknown): Promise<void> {
 }
 
 export function registerHandlers(bot: Bot): void {
+  // Auction browsing lives in its own module: it is the largest surface the
+  // bot has, and it shares nothing with identity or wallet handling.
+  registerAuctionHandlers(bot);
+
   bot.command('start', async (ctx) => {
     const identity = telegramIdentity(ctx);
     if (!identity) {
@@ -175,6 +180,7 @@ export function registerHandlers(bot: Bot): void {
         '/start — connect or recognise your account\n' +
         '/profile — your HOWLOW account\n' +
         '/wallet — your balance and recent transactions\n' +
+        '/auctions — browse live and upcoming auctions\n' +
         '/help — this message',
     );
   });

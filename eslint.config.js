@@ -16,6 +16,10 @@ import prettier from 'eslint-config-prettier';
  *   modules/*          ⇏  channels/*   (business logic knows no transport)
  *   anything           ⇏  modules/wallet/walletRepository
  *                                       (only the wallet module moves money)
+ *   anything           ⇏  modules/catalog/catalogRepository
+ *                                       (only the catalog module reserves stock)
+ *   anything           ⇏  modules/auctions/auctionRepository
+ *                                       (only the lifecycle service changes status)
  *
  * Channel adapters may import `modules/*` and `shared/*`, and nothing else
  * that carries business meaning.
@@ -45,6 +49,41 @@ const WALLET_INTERNALS_PATTERN = {
   ],
   message:
     'Only modules/wallet may touch wallet SQL. Call the wallet module (getWallet, credit, debit, refund, adminCredit, adminDebit) instead — every balance change must carry its ledger entry in the same transaction.',
+};
+
+/**
+ * Catalog SQL is reachable from one directory only.
+ *
+ * Ownership, slug uniqueness and — most importantly — inventory reservation
+ * are guaranteed by there being exactly one code path that can change them.
+ * Anything that could bypass `modules/catalog` is a way for a product unit to
+ * be promised twice.
+ */
+const CATALOG_INTERNALS_PATTERN = {
+  group: [
+    '**/modules/catalog/catalogRepository',
+    '**/modules/catalog/catalogRepository.js',
+    '**/catalog/catalogRepository',
+    '**/catalog/catalogRepository.js',
+  ],
+  message:
+    'Only modules/catalog may touch catalog SQL. Call the catalog module instead — ownership and inventory rules are enforced there, and reserving a unit must go through reserveUnit so it cannot be double-counted.',
+};
+
+/**
+ * Auction SQL, likewise. Every status change must go through the lifecycle
+ * service so the transition table is the only thing deciding what an auction
+ * may do next.
+ */
+const AUCTION_INTERNALS_PATTERN = {
+  group: [
+    '**/modules/auctions/auctionRepository',
+    '**/modules/auctions/auctionRepository.js',
+    '**/auctions/auctionRepository',
+    '**/auctions/auctionRepository.js',
+  ],
+  message:
+    'Only modules/auctions may touch auction SQL. Call the lifecycle service (submitForApproval, approve, reject, open, close, suspend, resume, cancel) instead — a status set directly bypasses the transition table.',
 };
 
 const DB_IMPORT_PATTERNS = [
@@ -115,6 +154,8 @@ export default tseslint.config(
           patterns: [
             ...DB_IMPORT_PATTERNS,
             WALLET_INTERNALS_PATTERN,
+            CATALOG_INTERNALS_PATTERN,
+            AUCTION_INTERNALS_PATTERN,
             {
               group: ['**/channels/http', '**/channels/http/**', '**/http', '**/http/**'],
               message:
@@ -136,6 +177,8 @@ export default tseslint.config(
           patterns: [
             ...DB_IMPORT_PATTERNS,
             WALLET_INTERNALS_PATTERN,
+            CATALOG_INTERNALS_PATTERN,
+            AUCTION_INTERNALS_PATTERN,
             {
               group: ['**/channels/telegram', '**/channels/telegram/**', '**/telegram', '**/telegram/**'],
               message:
@@ -158,24 +201,66 @@ export default tseslint.config(
   {
     files: ['apps/api/src/modules/**/*.ts'],
     rules: {
-      'no-restricted-imports': ['error', { patterns: [TRANSPORT_IMPORT_PATTERN, WALLET_INTERNALS_PATTERN] }],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            TRANSPORT_IMPORT_PATTERN,
+            WALLET_INTERNALS_PATTERN,
+            CATALOG_INTERNALS_PATTERN,
+            AUCTION_INTERNALS_PATTERN,
+          ],
+        },
+      ],
     },
   },
 
-  // The wallet module is the one place wallet SQL may be called from, so it
-  // keeps the transport rule and not the wallet one.
+  // Each module is the one place its own SQL may be called from, so it keeps
+  // the transport rule and its siblings' rules, but not its own.
   {
     files: ['apps/api/src/modules/wallet/**/*.ts'],
     rules: {
-      'no-restricted-imports': ['error', { patterns: [TRANSPORT_IMPORT_PATTERN] }],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [TRANSPORT_IMPORT_PATTERN, CATALOG_INTERNALS_PATTERN, AUCTION_INTERNALS_PATTERN],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/api/src/modules/catalog/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [TRANSPORT_IMPORT_PATTERN, WALLET_INTERNALS_PATTERN, AUCTION_INTERNALS_PATTERN],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/api/src/modules/auctions/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [TRANSPORT_IMPORT_PATTERN, WALLET_INTERNALS_PATTERN, CATALOG_INTERNALS_PATTERN],
+        },
+      ],
     },
   },
 
-  // ── Architecture: only the wallet module moves money ─────────────────────
+  // ── Architecture: domain SQL stays inside its module ─────────────────────
   {
     files: ['apps/api/src/realtime/**/*.ts', 'apps/worker/src/**/*.ts'],
     rules: {
-      'no-restricted-imports': ['error', { patterns: [WALLET_INTERNALS_PATTERN] }],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [WALLET_INTERNALS_PATTERN, CATALOG_INTERNALS_PATTERN, AUCTION_INTERNALS_PATTERN],
+        },
+      ],
     },
   },
 

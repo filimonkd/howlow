@@ -52,6 +52,14 @@ export const envSchema = z
     // Used to build the t.me deep link for account linking. Public information,
     // not a secret.
     TELEGRAM_BOT_USERNAME: z.string().min(3).max(64).optional(),
+    /**
+     * Where the Bot API lives. Defaults to Telegram's own servers.
+     *
+     * Overridable because Telegram supports running a local Bot API server, and
+     * because it is the only way to exercise the channel end to end without
+     * reaching the real Telegram — which is what `verify:telegram` does.
+     */
+    TELEGRAM_API_ROOT: z.url().default('https://api.telegram.org'),
 
     S3_ENDPOINT: z.url().default('http://localhost:9000'),
     S3_REGION: z.string().min(1).default('us-east-1'),
