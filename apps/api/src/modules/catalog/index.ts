@@ -37,6 +37,16 @@ export type { ProductPageResult } from './catalogService.js';
 export type { ProductCursor } from './catalogRepository.js';
 
 export { reconcileProductInventory, releaseUnit, reserveUnit, reserveUnitStandalone } from './inventory.js';
+
+/**
+ * The reservation read the bidding engine needs.
+ *
+ * A live auction must still hold its unit before it takes money for a bid.
+ * Exposed as a read only: the engine never reserves or releases — Phase 4's
+ * reservation, made once when the auction opened, stays authoritative, and
+ * re-reserving per bid would double-count inventory.
+ */
+export { findHeldReservation } from './catalogRepository.js';
 export type { InventoryReport, ReleaseOutcome, ReservationOutcome } from './inventory.js';
 
 export { CATALOG_ERRORS } from './errors.js';

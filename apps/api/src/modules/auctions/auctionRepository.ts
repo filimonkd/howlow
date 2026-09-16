@@ -43,6 +43,8 @@ interface AuctionRow {
   suspended_from: AuctionStatus | null;
   cancelled_at: Date | null;
   cancel_reason: string | null;
+  total_bids: number;
+  total_participants: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -93,6 +95,8 @@ function toAuction(row: AuctionRow): AuctionRecord {
     suspendedFrom: row.suspended_from,
     cancelledAt: row.cancelled_at,
     cancelReason: row.cancel_reason,
+    totalBids: row.total_bids,
+    totalParticipants: row.total_participants,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -116,7 +120,8 @@ const AUCTION_COLUMNS = `a.id, a.product_id, a.seller_id, a.slug, a.title, a.des
   a.status, a.algorithm_version, a.starts_at, a.ends_at, a.created_by, a.submitted_at,
   a.approved_by, a.approved_at, a.rejected_at, a.rejection_reason, a.opened_at,
   a.closing_at, a.closed_at, a.suspended_at, a.suspend_reason, a.suspended_from,
-  a.cancelled_at, a.cancel_reason, a.created_at, a.updated_at`;
+  a.cancelled_at, a.cancel_reason, a.total_bids, a.total_participants,
+  a.created_at, a.updated_at`;
 
 const DISPLAY_COLUMNS = `s.display_name AS seller_name, c.slug AS category_slug,
   p.title AS product_title, p.description AS product_description, p.brand AS product_brand,
@@ -294,6 +299,37 @@ export async function updateTerms(
  * that still sees the expected previous state updates a row. The caller treats
  * "no row" as "someone else already did it".
  */
+/**
+ * Add a committed bid batch to the auction's live counters.
+ *
+ * Called by the bidding engine, inside the bid transaction, while it still
+ * holds this row's `FOR UPDATE` lock from `lockById`. That lock is what makes
+ * the counters correct under load: two bidders serialise on the auction row,
+ * so neither can read a total the other is about to change. A bare
+ * `UPDATE ... SET total_bids = total_bids + n` would also be atomic per
+ * statement, but the engine needs the *resulting* values to publish, and it
+ * needs them to agree with the bids it just inserted.
+ *
+ * `addedParticipants` is 0 or 1: a user becomes a participant once, on their
+ * first bid in this auction, however many bids that first batch carried.
+ */
+export async function addBidCounters(
+  input: { id: string; addedBids: number; addedParticipants: number },
+  tx: Tx,
+): Promise<{ totalBids: number; totalParticipants: number }> {
+  const { rows } = await tx.query<{ total_bids: number; total_participants: number }>(
+    `UPDATE auctions
+        SET total_bids = total_bids + $2,
+            total_participants = total_participants + $3
+      WHERE id = $1
+      RETURNING total_bids, total_participants`,
+    [input.id, input.addedBids, input.addedParticipants],
+  );
+  const row = rows[0];
+  if (!row) throw new Error(`auction ${input.id} vanished while its counters were updated`);
+  return { totalBids: row.total_bids, totalParticipants: row.total_participants };
+}
+
 export async function applyTransition(
   input: {
     id: string;

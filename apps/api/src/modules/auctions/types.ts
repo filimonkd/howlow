@@ -39,6 +39,13 @@ export interface AuctionRecord extends AuctionTerms {
   readonly suspendedFrom: AuctionStatus | null;
   readonly cancelledAt: Date | null;
   readonly cancelReason: string | null;
+  /**
+   * Live counters, maintained by the bidding engine inside the bid
+   * transaction under this row's lock. Not terms: they change while the
+   * auction is live, which is why the immutability trigger does not name them.
+   */
+  readonly totalBids: number;
+  readonly totalParticipants: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }

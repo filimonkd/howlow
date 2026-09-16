@@ -1,4 +1,4 @@
-import type { AuctionEvent } from '@howlow/shared';
+import type { AuctionEvent, AuctionStatsEvent } from '@howlow/shared';
 import { getRedis } from '../db/index.js';
 import { getLogger } from '../shared/logger.js';
 
@@ -41,6 +41,35 @@ export async function publishAuctionEvent(event: AuctionEvent): Promise<void> {
     getLogger().warn(
       { err: error, event: event.event, auctionId: event.auctionId },
       'Lifecycle event could not be published; the transition itself is committed',
+    );
+  }
+}
+
+/**
+ * Aggregate auction statistics, after a bid batch commits.
+ *
+ * Its own channel, so a subscriber that wants lifecycle transitions is not
+ * woken by every bid on a busy auction, and a bid-stats subscriber does not
+ * have to filter.
+ *
+ * **Counts only.** No amount, no bid id, no user — and that is a correctness
+ * property, not a payload preference: HOWLOW awards the lowest unmatched bid,
+ * so a listener who could see amounts (or difference two events to recover
+ * one) would be handed the answer. `totalBids` and `totalParticipants` reveal
+ * how busy an auction is, which every bidder may know.
+ *
+ * Same at-most-once contract as lifecycle events: the durable record is the
+ * committed rows, this is fan-out, and it never throws.
+ */
+export const AUCTION_STATS_CHANNEL = 'howlow:auction-stats';
+
+export async function publishAuctionStats(event: AuctionStatsEvent): Promise<void> {
+  try {
+    await getRedis().publish(AUCTION_STATS_CHANNEL, JSON.stringify(event));
+  } catch (error) {
+    getLogger().warn(
+      { err: error, auctionId: event.auctionId },
+      'Auction stats could not be published; the bids themselves are committed',
     );
   }
 }
