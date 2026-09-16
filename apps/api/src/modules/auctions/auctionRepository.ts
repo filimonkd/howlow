@@ -475,6 +475,40 @@ export async function findDueToClose(limit: number, tx?: Tx): Promise<string[]> 
   return rows.map((row) => row.id);
 }
 
+/**
+ * Auctions that are scheduled but have not started.
+ *
+ * Read on worker boot so a worker that was down when an auction was approved
+ * still enqueues its precise open and close jobs. Anything already due is the
+ * sweeper's business instead.
+ */
+export async function findScheduledAhead(
+  limit: number,
+  tx?: Tx,
+): Promise<{ id: string; startsAt: Date; endsAt: Date }[]> {
+  const { rows } = await runner(tx).query<{ id: string; starts_at: Date; ends_at: Date }>(
+    `SELECT id, starts_at, ends_at FROM auctions
+      WHERE status = 'scheduled' AND starts_at > now()
+      ORDER BY starts_at LIMIT $1`,
+    [limit],
+  );
+  return rows.map((row) => ({ id: row.id, startsAt: row.starts_at, endsAt: row.ends_at }));
+}
+
+/** Live auctions whose deadline is still ahead, for the same boot-time reason. */
+export async function findLiveAhead(
+  limit: number,
+  tx?: Tx,
+): Promise<{ id: string; startsAt: Date; endsAt: Date }[]> {
+  const { rows } = await runner(tx).query<{ id: string; starts_at: Date; ends_at: Date }>(
+    `SELECT id, starts_at, ends_at FROM auctions
+      WHERE status = 'live' AND ends_at > now()
+      ORDER BY ends_at LIMIT $1`,
+    [limit],
+  );
+  return rows.map((row) => ({ id: row.id, startsAt: row.starts_at, endsAt: row.ends_at }));
+}
+
 /** The database's own clock, for decisions that must not trust the process. */
 export async function databaseNow(tx?: Tx): Promise<Date> {
   const { rows } = await runner(tx).query<{ now: Date }>(`SELECT now() AS now`);

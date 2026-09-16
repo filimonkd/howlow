@@ -58,7 +58,13 @@ export {
 } from './transitions.js';
 export type { AuctionAction } from './transitions.js';
 
-export { databaseNow, findDueToClose, findDueToOpen } from './auctionRepository.js';
+export {
+  databaseNow,
+  findDueToClose,
+  findDueToOpen,
+  findLiveAhead,
+  findScheduledAhead,
+} from './auctionRepository.js';
 
 export { AUCTION_ERRORS } from './errors.js';
 export type { AuctionErrorCode } from './errors.js';
