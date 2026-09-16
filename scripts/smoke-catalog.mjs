@@ -19,17 +19,21 @@
  * Telegram is driven against a stub Bot API on localhost (TELEGRAM_API_ROOT),
  * so the outbound messages are captured and asserted rather than sent.
  *
- * Registration is rate limited per IP, so several runs in quick succession are
- * refused with 429. That is the limiter working; wait for the window or clear
- * the `ratelimit:register:<ip>` keys in Redis.
+ * Registration is rate limited per IP and every smoke script registers from
+ * 127.0.0.1, so the run clears the `ratelimit:*` counters first. See
+ * clear-rate-limits.mjs for why that belongs to the script.
  */
 import { spawn } from 'node:child_process';
 import http from 'node:http';
 import process from 'node:process';
 import pg from 'pg';
+import { clearRateLimits } from './clear-rate-limits.mjs';
 import { loadEnvFile } from './load-env.mjs';
 
 await loadEnvFile();
+// The limiter is keyed by IP, and every smoke script comes from 127.0.0.1.
+// Clearing the counters is this run's precondition, not a bypass of the rule.
+await clearRateLimits();
 
 const PORT = Number(process.env.SMOKE_PORT ?? 4302);
 const TELEGRAM_STUB_PORT = Number(process.env.SMOKE_TELEGRAM_PORT ?? 4303);
