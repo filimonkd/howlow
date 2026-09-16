@@ -130,10 +130,7 @@ describe('concurrent auction operations', () => {
       await holder.query('BEGIN');
       await contender.query('BEGIN');
 
-      const held = await catalog.reserveUnit(
-        { productId, auctionId: firstAuction, quantity: 1 },
-        holder,
-      );
+      const held = await catalog.reserveUnit({ productId, auctionId: firstAuction, quantity: 1 }, holder);
       expect(held.created).toBe(true);
       expect(held.availableAfter).toBe(0);
 
@@ -298,9 +295,7 @@ describe('concurrent auction operations', () => {
     const auctionId = auction.id;
 
     const submits = await settle(
-      Array.from({ length: 3 }, () =>
-        auctions.submitForApproval({ auctionId, sellerId: seller.sellerId }),
-      ),
+      Array.from({ length: 3 }, () => auctions.submitForApproval({ auctionId, sellerId: seller.sellerId })),
     );
     expect(submits.otherErrors).toEqual([]);
     expect(await countAuditEvents(db, { entityId: auctionId, action: 'auction.submitted' })).toBe(1);

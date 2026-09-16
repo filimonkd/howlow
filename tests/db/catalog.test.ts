@@ -233,7 +233,8 @@ describe('products', () => {
     expect(product.status).toBe('draft');
     expect(product.slug).toBe('iphone-16-pro-256gb');
     expect(product.specs).toEqual({ Storage: '256GB', Colour: 'Titanium' });
-    expect(product.availableQuantity ?? undefined).toBeUndefined();
+    // The record carries stock and reservations; availability is derived, and
+    // only the DTO flattens it.
     expect(catalog.availableQuantity(product)).toBe(3);
     expect(await countAuditEvents(db, { entityId: product.id, action: 'product.created' })).toBe(1);
   });

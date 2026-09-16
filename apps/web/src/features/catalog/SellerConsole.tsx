@@ -47,10 +47,7 @@ export function SellerConsole(): React.JSX.Element {
   const reload = useCallback(async (): Promise<void> => {
     setLoadError(undefined);
     try {
-      const [productPage, auctionPage] = await Promise.all([
-        api.fetchMyProducts(),
-        api.fetchMyAuctions(),
-      ]);
+      const [productPage, auctionPage] = await Promise.all([api.fetchMyProducts(), api.fetchMyAuctions()]);
       setProducts(productPage.products);
       setAuctions(auctionPage.auctions);
     } catch (cause) {
@@ -60,7 +57,10 @@ export function SellerConsole(): React.JSX.Element {
 
   useEffect(() => {
     void reload();
-    void api.fetchCategories().then(setCategories).catch(() => setCategories([]));
+    void api
+      .fetchCategories()
+      .then(setCategories)
+      .catch(() => setCategories([]));
   }, [reload]);
 
   const run = (action: () => Promise<void>): void => {
@@ -90,8 +90,7 @@ export function SellerConsole(): React.JSX.Element {
 
       <Panel title="Add a product">
         <p className="mb-3 text-sm opacity-70">
-          A product holds the stock. Each auction offers one unit of it, reserved when the auction
-          goes live.
+          A product holds the stock. Each auction offers one unit of it, reserved when the auction goes live.
         </p>
         <form
           onSubmit={productForm.onSubmit(() => {
@@ -134,7 +133,11 @@ export function SellerConsole(): React.JSX.Element {
             value={productForm.values.stockQuantity}
             onChange={productForm.set('stockQuantity')}
           />
-          <Field label="Brand (optional)" value={productForm.values.brand} onChange={productForm.set('brand')} />
+          <Field
+            label="Brand (optional)"
+            value={productForm.values.brand}
+            onChange={productForm.set('brand')}
+          />
           <Field label="SKU (optional)" value={productForm.values.sku} onChange={productForm.set('sku')} />
           {categories.length > 0 && (
             <label className="mb-3 block text-sm">
@@ -168,9 +171,7 @@ export function SellerConsole(): React.JSX.Element {
         {products === undefined ? (
           <p className="text-sm opacity-70">Loading…</p>
         ) : products.length === 0 ? (
-          <p className="text-sm opacity-70">
-            No products yet. Add one above to start running auctions.
-          </p>
+          <p className="text-sm opacity-70">No products yet. Add one above to start running auctions.</p>
         ) : (
           <ul className="divide-y divide-black/10 text-sm dark:divide-white/15">
             {products.map((product) => (
@@ -178,8 +179,8 @@ export function SellerConsole(): React.JSX.Element {
                 <span>
                   <span className="block font-medium">{product.title}</span>
                   <span className="block text-xs opacity-60">
-                    {product.status} · stock {product.stockQuantity} · {product.reservedQuantity}{' '}
-                    reserved · {money(product.retailPriceMinor, product.currency)}
+                    {product.status} · stock {product.stockQuantity} · {product.reservedQuantity} reserved ·{' '}
+                    {money(product.retailPriceMinor, product.currency)}
                   </span>
                 </span>
                 <span className="flex gap-2">
@@ -227,8 +228,8 @@ export function SellerConsole(): React.JSX.Element {
 
       <Panel title="Create an auction">
         <p className="mb-3 text-sm opacity-70">
-          The bid range must divide evenly by the increment, or the highest bid would be one nobody
-          could place.
+          The bid range must divide evenly by the increment, or the highest bid would be one nobody could
+          place.
         </p>
         <form
           onSubmit={auctionForm.onSubmit(() => {

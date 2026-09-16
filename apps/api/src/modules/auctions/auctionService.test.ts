@@ -44,9 +44,7 @@ describe('a valid configuration', () => {
 
   it('accepts a single-amount auction', () => {
     // min == max is a one-rung ladder, which is odd but not invalid.
-    expect(() =>
-      validateAuctionConfig({ ...VALID, minBidMinor: 500n, maxBidMinor: 500n }),
-    ).not.toThrow();
+    expect(() => validateAuctionConfig({ ...VALID, minBidMinor: 500n, maxBidMinor: 500n })).not.toThrow();
   });
 });
 

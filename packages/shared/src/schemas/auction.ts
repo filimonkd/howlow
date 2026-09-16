@@ -116,10 +116,9 @@ export type AuctionAdminDetailDto = z.infer<typeof auctionAdminDetailSchema>;
 // Creation and configuration
 // ---------------------------------------------------------------------------
 
-const positiveMinorAmount = minorAmountSchema.refine(
-  (value) => !value.startsWith('-') && value !== '0',
-  { message: 'Amount must be greater than zero' },
-);
+const positiveMinorAmount = minorAmountSchema.refine((value) => !value.startsWith('-') && value !== '0', {
+  message: 'Amount must be greater than zero',
+});
 const nonNegativeMinorAmount = minorAmountSchema.refine((value) => !value.startsWith('-'), {
   message: 'Amount may not be negative',
 });
@@ -180,8 +179,7 @@ function checkAuctionConfig(config: AuctionConfigFields, ctx: z.RefinementCtx): 
     ctx.addIssue({
       code: 'custom',
       path: ['bidIncrementMinor'],
-      message:
-        'The bid range must be a whole number of increments, or the maximum bid would be unreachable',
+      message: 'The bid range must be a whole number of increments, or the maximum bid would be unreachable',
     });
   }
 }

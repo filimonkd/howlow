@@ -13,13 +13,7 @@ import {
   unauthorizedAuctionOperation,
 } from './errors.js';
 import * as repo from './auctionRepository.js';
-import {
-  allowedFrom,
-  canTransition,
-  holdsInventory,
-  targetOf,
-  type AuctionAction,
-} from './transitions.js';
+import { allowedFrom, canTransition, holdsInventory, targetOf, type AuctionAction } from './transitions.js';
 import type { AuctionRecord } from './types.js';
 
 /**

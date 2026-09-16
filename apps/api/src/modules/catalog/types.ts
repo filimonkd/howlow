@@ -1,9 +1,4 @@
-import type {
-  Currency,
-  ProductCondition,
-  ProductStatus,
-  SellerStatus,
-} from '@howlow/shared';
+import type { Currency, ProductCondition, ProductStatus, SellerStatus } from '@howlow/shared';
 
 /**
  * Internal catalog records.
@@ -82,9 +77,6 @@ export interface ReservationRecord {
 }
 
 /** Units free to be reserved right now. */
-export function availableQuantity(product: {
-  stockQuantity: number;
-  reservedQuantity: number;
-}): number {
+export function availableQuantity(product: { stockQuantity: number; reservedQuantity: number }): number {
   return product.stockQuantity - product.reservedQuantity;
 }

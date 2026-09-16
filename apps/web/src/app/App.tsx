@@ -100,9 +100,7 @@ export function App(): React.JSX.Element {
         />
       )}
 
-      {state.kind === 'loading' && route.name === 'home' && (
-        <p className="text-sm opacity-70">Loading…</p>
-      )}
+      {state.kind === 'loading' && route.name === 'home' && <p className="text-sm opacity-70">Loading…</p>}
 
       {state.kind === 'anonymous' && route.name === 'home' && (
         <Auth
@@ -149,9 +147,7 @@ export function App(): React.JSX.Element {
       {state.kind === 'authenticated' && route.name === 'seller' && <SellerConsole />}
       {state.kind === 'authenticated' && route.name === 'admin' && <AdminConsole />}
 
-      <footer className="mt-auto text-xs opacity-60">
-        Auction algorithm: {AUCTION_ALGORITHM_VERSION}
-      </footer>
+      <footer className="mt-auto text-xs opacity-60">Auction algorithm: {AUCTION_ALGORITHM_VERSION}</footer>
     </main>
   );
 }

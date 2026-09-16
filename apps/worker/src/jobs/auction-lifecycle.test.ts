@@ -18,12 +18,7 @@ describe('job ids', () => {
 
   it('distinguishes opening from closing, and one auction from another', () => {
     const other = '22222222-2222-4222-8222-222222222222';
-    const ids = new Set([
-      openJobId(auctionId),
-      closeJobId(auctionId),
-      openJobId(other),
-      closeJobId(other),
-    ]);
+    const ids = new Set([openJobId(auctionId), closeJobId(auctionId), openJobId(other), closeJobId(other)]);
     expect(ids.size).toBe(4);
   });
 

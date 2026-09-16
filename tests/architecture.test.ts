@@ -92,7 +92,7 @@ describe('architecture boundaries', () => {
     expect(output).toMatch(/Only modules\/auctions may touch auction SQL/);
   });
 
-  it('stops one module from reaching another module\'s SQL', async () => {
+  it("stops one module from reaching another module's SQL", async () => {
     const output = await lintFixture(
       MODULE_FIXTURE,
       "import { applyTransition } from '../auctions/auctionRepository.js';\nexport const fixture = applyTransition;\n",

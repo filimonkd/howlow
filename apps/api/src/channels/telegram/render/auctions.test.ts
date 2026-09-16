@@ -153,9 +153,7 @@ describe('callback payloads', () => {
     for (const row of keyboard.inline_keyboard) {
       for (const button of row) {
         if ('callback_data' in button && button.callback_data !== undefined) {
-          expect(Buffer.byteLength(button.callback_data, 'utf8')).toBeLessThanOrEqual(
-            MAX_CALLBACK_BYTES,
-          );
+          expect(Buffer.byteLength(button.callback_data, 'utf8')).toBeLessThanOrEqual(MAX_CALLBACK_BYTES);
         }
       }
     }

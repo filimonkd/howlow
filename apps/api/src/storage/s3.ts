@@ -64,7 +64,10 @@ function uriEncode(value: string): string {
 const encodePath = (path: string): string => path.split('/').map(uriEncode).join('/');
 
 function amzDate(now: Date): { long: string; short: string } {
-  const long = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const long = now
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}/, '');
   return { long, short: long.slice(0, 8) };
 }
 
@@ -81,11 +84,7 @@ function signingKey(secretKey: string, shortDate: string, region: string): Buffe
  * collisions with another seller's prefix are all impossible by construction
  * rather than by filtering.
  */
-export function buildImageKey(input: {
-  sellerId: string;
-  productId: string;
-  contentType: string;
-}): string {
+export function buildImageKey(input: { sellerId: string; productId: string; contentType: string }): string {
   const extension = EXTENSION_BY_CONTENT_TYPE[input.contentType];
   if (extension === undefined) {
     throw new Error(`Refusing to build a key for unsupported content type ${input.contentType}`);
@@ -100,9 +99,7 @@ const EXTENSION_BY_CONTENT_TYPE: Record<string, string | undefined> = {
 };
 
 function objectPath(config: StorageSettings, key: string): string {
-  return config.forcePathStyle
-    ? `/${encodePath(config.bucket)}/${encodePath(key)}`
-    : `/${encodePath(key)}`;
+  return config.forcePathStyle ? `/${encodePath(config.bucket)}/${encodePath(key)}` : `/${encodePath(key)}`;
 }
 
 function hostFor(config: StorageSettings): string {
@@ -184,15 +181,11 @@ export function presignWith(config: StorageSettings, input: PresignInput): Presi
     .update(stringToSign, 'utf8')
     .digest('hex');
 
-  const origin = config.forcePathStyle
-    ? config.endpoint
-    : `${new URL(config.endpoint).protocol}//${host}`;
+  const origin = config.forcePathStyle ? config.endpoint : `${new URL(config.endpoint).protocol}//${host}`;
 
   return {
     url: `${origin}${path}?${canonicalQuery}&X-Amz-Signature=${signature}`,
-    headers: Object.fromEntries(
-      Object.entries(headers).filter(([name]) => name.toLowerCase() !== 'host'),
-    ),
+    headers: Object.fromEntries(Object.entries(headers).filter(([name]) => name.toLowerCase() !== 'host')),
     signature,
   };
 }

@@ -130,18 +130,14 @@ const AUCTION_SELECT = `
     LEFT JOIN categories c ON c.id = p.category_id`;
 
 export async function findById(id: string, tx?: Tx): Promise<AuctionWithDisplay | undefined> {
-  const { rows } = await runner(tx).query<AuctionRow & DisplayRow>(
-    `${AUCTION_SELECT} WHERE a.id = $1`,
-    [id],
-  );
+  const { rows } = await runner(tx).query<AuctionRow & DisplayRow>(`${AUCTION_SELECT} WHERE a.id = $1`, [id]);
   return rows[0] ? toDisplay(rows[0]) : undefined;
 }
 
 export async function findBySlug(slug: string, tx?: Tx): Promise<AuctionWithDisplay | undefined> {
-  const { rows } = await runner(tx).query<AuctionRow & DisplayRow>(
-    `${AUCTION_SELECT} WHERE a.slug = $1`,
-    [slug],
-  );
+  const { rows } = await runner(tx).query<AuctionRow & DisplayRow>(`${AUCTION_SELECT} WHERE a.slug = $1`, [
+    slug,
+  ]);
   return rows[0] ? toDisplay(rows[0]) : undefined;
 }
 

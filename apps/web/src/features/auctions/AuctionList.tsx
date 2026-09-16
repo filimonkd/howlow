@@ -60,7 +60,10 @@ export function AuctionList({
   useEffect(() => {
     // A failed category load is not worth blocking discovery over: the filter
     // simply offers fewer options.
-    void api.fetchCategories().then(setCategories).catch(() => setCategories([]));
+    void api
+      .fetchCategories()
+      .then(setCategories)
+      .catch(() => setCategories([]));
   }, []);
 
   const loadMore = (cursor: string): void => {
@@ -92,8 +95,8 @@ export function AuctionList({
     <div className="space-y-4">
       <Panel title="Auctions">
         <p className="mb-3 text-sm opacity-70">
-          HOWLOW auctions are decided by the <strong>lowest unique bid</strong>: the smallest amount
-          that exactly one person bid. Nobody can see anyone else’s bids while an auction is running.
+          HOWLOW auctions are decided by the <strong>lowest unique bid</strong>: the smallest amount that
+          exactly one person bid. Nobody can see anyone else’s bids while an auction is running.
         </p>
 
         <div className="flex flex-wrap gap-2">
@@ -165,8 +168,7 @@ export function AuctionList({
       {state.kind === 'ready' && state.auctions.length === 0 && (
         <Panel title="Nothing open right now">
           <p className="text-sm opacity-70">
-            There are no auctions open at the moment. New ones appear here as soon as they are
-            scheduled.
+            There are no auctions open at the moment. New ones appear here as soon as they are scheduled.
           </p>
         </Panel>
       )}

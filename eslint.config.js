@@ -223,11 +223,7 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         {
-          patterns: [
-            TRANSPORT_IMPORT_PATTERN,
-            CATALOG_INTERNALS_PATTERN,
-            AUCTION_INTERNALS_PATTERN,
-          ],
+          patterns: [TRANSPORT_IMPORT_PATTERN, CATALOG_INTERNALS_PATTERN, AUCTION_INTERNALS_PATTERN],
         },
       ],
     },
@@ -238,11 +234,7 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         {
-          patterns: [
-            TRANSPORT_IMPORT_PATTERN,
-            WALLET_INTERNALS_PATTERN,
-            AUCTION_INTERNALS_PATTERN,
-          ],
+          patterns: [TRANSPORT_IMPORT_PATTERN, WALLET_INTERNALS_PATTERN, AUCTION_INTERNALS_PATTERN],
         },
       ],
     },
@@ -253,11 +245,7 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         {
-          patterns: [
-            TRANSPORT_IMPORT_PATTERN,
-            WALLET_INTERNALS_PATTERN,
-            CATALOG_INTERNALS_PATTERN,
-          ],
+          patterns: [TRANSPORT_IMPORT_PATTERN, WALLET_INTERNALS_PATTERN, CATALOG_INTERNALS_PATTERN],
         },
       ],
     },
@@ -270,11 +258,7 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         {
-          patterns: [
-            WALLET_INTERNALS_PATTERN,
-            CATALOG_INTERNALS_PATTERN,
-            AUCTION_INTERNALS_PATTERN,
-          ],
+          patterns: [WALLET_INTERNALS_PATTERN, CATALOG_INTERNALS_PATTERN, AUCTION_INTERNALS_PATTERN],
         },
       ],
     },

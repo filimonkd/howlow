@@ -62,10 +62,16 @@ export function validateAuctionConfig(config: AuctionConfig): void {
     );
   }
   if (config.minBidMinor <= 0n) {
-    throw invalidAuctionConfig('minimum bid must be greater than zero', 'The minimum bid must be more than zero.');
+    throw invalidAuctionConfig(
+      'minimum bid must be greater than zero',
+      'The minimum bid must be more than zero.',
+    );
   }
   if (config.bidIncrementMinor <= 0n) {
-    throw invalidAuctionConfig('increment must be greater than zero', 'The bid increment must be more than zero.');
+    throw invalidAuctionConfig(
+      'increment must be greater than zero',
+      'The bid increment must be more than zero.',
+    );
   }
   if (config.maxBidMinor < config.minBidMinor) {
     throw invalidAuctionConfig(
@@ -81,10 +87,16 @@ export function validateAuctionConfig(config: AuctionConfig): void {
     );
   }
   if (config.bidFeeMinor < 0n) {
-    throw invalidAuctionConfig('participation fee may not be negative', 'The participation fee cannot be negative.');
+    throw invalidAuctionConfig(
+      'participation fee may not be negative',
+      'The participation fee cannot be negative.',
+    );
   }
   if (config.maxBidsPerUser < 1) {
-    throw invalidAuctionConfig('max bids per user must be at least one', 'Bidders must be allowed at least one bid.');
+    throw invalidAuctionConfig(
+      'max bids per user must be at least one',
+      'Bidders must be allowed at least one bid.',
+    );
   }
   if (config.winnerPaymentHours < 1) {
     throw invalidAuctionConfig(
@@ -95,7 +107,9 @@ export function validateAuctionConfig(config: AuctionConfig): void {
 }
 
 /** How many distinct amounts a bidder may choose from. Useful context to log. */
-export function ladderSize(config: Pick<AuctionConfig, 'minBidMinor' | 'maxBidMinor' | 'bidIncrementMinor'>): bigint {
+export function ladderSize(
+  config: Pick<AuctionConfig, 'minBidMinor' | 'maxBidMinor' | 'bidIncrementMinor'>,
+): bigint {
   return (config.maxBidMinor - config.minBidMinor) / config.bidIncrementMinor + 1n;
 }
 
@@ -112,10 +126,7 @@ async function assertProductEligible(
   input: { productId: string; sellerId: string; excludeAuctionId?: string | undefined },
   tx: Tx,
 ): Promise<void> {
-  const product = await catalog.getOwnedProduct(
-    { productId: input.productId, sellerId: input.sellerId },
-    tx,
-  );
+  const product = await catalog.getOwnedProduct({ productId: input.productId, sellerId: input.sellerId }, tx);
 
   if (product.status !== 'active') {
     throw productNotEligible(`product is ${product.status}, not active`);
@@ -139,10 +150,7 @@ async function assertProductEligible(
 }
 
 /** A free auction slug, suffixed on collision the same way products are. */
-async function resolveSlug(
-  input: { desired: string | undefined; title: string },
-  tx: Tx,
-): Promise<string> {
+async function resolveSlug(input: { desired: string | undefined; title: string }, tx: Tx): Promise<string> {
   if (input.desired !== undefined) {
     if (await repo.slugExists(input.desired, tx)) throw auctionSlugTaken(input.desired);
     return input.desired;
@@ -385,11 +393,7 @@ export async function listPublicAuctions(filters: {
 }): Promise<AuctionListResult> {
   const visible: readonly AuctionStatus[] = PUBLICLY_VISIBLE_STATUSES;
   const statuses =
-    filters.status === undefined
-      ? visible
-      : visible.includes(filters.status)
-        ? [filters.status]
-        : [];
+    filters.status === undefined ? visible : visible.includes(filters.status) ? [filters.status] : [];
 
   // A status outside the public set matches nothing rather than everything.
   if (statuses.length === 0) return { auctions: [], nextCursor: null };

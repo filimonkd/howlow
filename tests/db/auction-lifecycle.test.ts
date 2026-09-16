@@ -239,9 +239,7 @@ describe('the approval flow', () => {
     const { auctionId } = await draft();
     await auctions.submitForApproval({ auctionId, sellerId: seller.sellerId });
 
-    const refusal = await domainRejection(
-      auctions.approve({ auctionId, actorUserId: seller.userId }),
-    );
+    const refusal = await domainRejection(auctions.approve({ auctionId, actorUserId: seller.userId }));
     expect(refusal.domainCode).toBe('UNAUTHORIZED_AUCTION_OPERATION');
     expect((await readAuctionRow(db, auctionId)).status).toBe('pending_approval');
   });

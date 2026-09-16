@@ -13,7 +13,10 @@ export function money(minor: string, currency: AuctionSummaryDto['terms']['curre
 
 const STATUS_STYLES: Record<AuctionSummaryDto['status'], { label: string; className: string }> = {
   draft: { label: 'Draft', className: 'bg-black/10 dark:bg-white/15' },
-  pending_approval: { label: 'Awaiting review', className: 'bg-amber-500/20 text-amber-800 dark:text-amber-300' },
+  pending_approval: {
+    label: 'Awaiting review',
+    className: 'bg-amber-500/20 text-amber-800 dark:text-amber-300',
+  },
   scheduled: { label: 'Starting soon', className: 'bg-sky-500/20 text-sky-800 dark:text-sky-300' },
   live: { label: 'Live', className: 'bg-green-600/20 text-green-800 dark:text-green-300' },
   closing: { label: 'Closing', className: 'bg-orange-500/20 text-orange-800 dark:text-orange-300' },
@@ -23,16 +26,10 @@ const STATUS_STYLES: Record<AuctionSummaryDto['status'], { label: string; classN
   suspended: { label: 'Suspended', className: 'bg-red-600/20 text-red-800 dark:text-red-300' },
 };
 
-export function StatusBadge({
-  status,
-}: {
-  readonly status: AuctionSummaryDto['status'];
-}): React.JSX.Element {
+export function StatusBadge({ status }: { readonly status: AuctionSummaryDto['status'] }): React.JSX.Element {
   const style = STATUS_STYLES[status];
   return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${style.className}`}>
-      {style.label}
-    </span>
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${style.className}`}>{style.label}</span>
   );
 }
 

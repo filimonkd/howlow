@@ -189,10 +189,7 @@ describe('catalog integrity', () => {
     // whichever it evaluates first. Either refusal is the guarantee this test
     // is about, so both are accepted rather than pinning an evaluation order
     // the database does not promise.
-    expect([
-      'products_stock_non_negative',
-      'products_reserved_within_stock',
-    ]).toContain(failure.constraint);
+    expect(['products_stock_non_negative', 'products_reserved_within_stock']).toContain(failure.constraint);
   });
 
   it('rejects reserving more units than exist', async () => {

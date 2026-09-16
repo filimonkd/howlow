@@ -62,7 +62,11 @@ const telegramStub = http.createServer((req, res) => {
         ? { id: 42, is_bot: true, first_name: 'HOWLOW Smoke', username: 'howlow_smoke_bot' }
         : method === 'answerCallbackQuery'
           ? true
-          : { message_id: sent.length, date: Math.floor(Date.now() / 1000), chat: { id: 1, type: 'private' } };
+          : {
+              message_id: sent.length,
+              date: Math.floor(Date.now() / 1000),
+              chat: { id: 1, type: 'private' },
+            };
 
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ ok: true, result }));
@@ -319,10 +323,7 @@ async function main() {
   check(slot.body.method === 'PUT', 'the upload slot was not a PUT');
   check(slot.body.uploadUrl.includes('X-Amz-Signature='), 'the upload URL was not presigned');
   // The key is the server's, built from the seller and product, never the caller's.
-  check(
-    slot.body.uploadUrl.includes(`/${productId}/`),
-    'the upload URL was not scoped to the product',
-  );
+  check(slot.body.uploadUrl.includes(`/${productId}/`), 'the upload URL was not scoped to the product');
   console.log('smoke-catalog: image upload slots are presigned and server-scoped');
 
   const activated = await call(`/seller/products/${productId}`, {
@@ -448,10 +449,7 @@ async function main() {
     'winningAmountMinor',
     'sellerId',
   ]) {
-    check(
-      !Object.hasOwn(publicDetail.body, forbidden),
-      `the public auction payload exposed ${forbidden}`,
-    );
+    check(!Object.hasOwn(publicDetail.body, forbidden), `the public auction payload exposed ${forbidden}`);
   }
 
   const inListing = await call('/auctions');
@@ -504,19 +502,13 @@ async function main() {
   );
   const detailMessage = lastSent('sendMessage');
   const detailText = String(detailMessage.text);
-  check(
-    detailText.includes(`Smoke Telephone ${RUN_TAG}`),
-    'the bot detail omitted the product',
-  );
+  check(detailText.includes(`Smoke Telephone ${RUN_TAG}`), 'the bot detail omitted the product');
   check(detailText.includes('1.00 ETB'), 'the bot detail omitted the minimum bid');
   check(detailText.includes('50.00 ETB'), 'the bot detail omitted the maximum bid');
   check(detailText.includes('5.00 ETB per bid'), 'the bot detail omitted the participation fee');
   check(detailText.includes('Up to 25 bids each'), 'the bot detail omitted the per-person limit');
   check(detailText.includes('120000.00 ETB'), 'the bot detail omitted the reference price');
-  check(
-    detailText.includes('lowest bid nobody else matched'),
-    'the bot detail did not explain the format',
-  );
+  check(detailText.includes('lowest bid nobody else matched'), 'the bot detail did not explain the format');
   check(detailText.includes(auctionSlug), 'the bot detail did not link to the website page');
   check(
     !/bids so far|bidders|participants|current lowest|winning bid/i.test(detailText),

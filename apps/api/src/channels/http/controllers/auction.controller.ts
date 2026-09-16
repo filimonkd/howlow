@@ -140,14 +140,10 @@ export async function updateAuction(req: Request, res: Response): Promise<void> 
       ...(body.endsAt === undefined ? {} : { endsAt: new Date(body.endsAt) }),
       ...(body.minBidMinor === undefined ? {} : { minBidMinor: BigInt(body.minBidMinor) }),
       ...(body.maxBidMinor === undefined ? {} : { maxBidMinor: BigInt(body.maxBidMinor) }),
-      ...(body.bidIncrementMinor === undefined
-        ? {}
-        : { bidIncrementMinor: BigInt(body.bidIncrementMinor) }),
+      ...(body.bidIncrementMinor === undefined ? {} : { bidIncrementMinor: BigInt(body.bidIncrementMinor) }),
       ...(body.maxBidsPerUser === undefined ? {} : { maxBidsPerUser: body.maxBidsPerUser }),
       ...(body.bidFeeMinor === undefined ? {} : { bidFeeMinor: BigInt(body.bidFeeMinor) }),
-      ...(body.winnerPaymentHours === undefined
-        ? {}
-        : { winnerPaymentHours: body.winnerPaymentHours }),
+      ...(body.winnerPaymentHours === undefined ? {} : { winnerPaymentHours: body.winnerPaymentHours }),
     },
     context: operationContext(req, 'web'),
   });

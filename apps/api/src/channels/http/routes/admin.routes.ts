@@ -76,11 +76,7 @@ adminRoutes.post(
 );
 
 // ── Catalog administration ────────────────────────────────────────────────────
-adminRoutes.get(
-  '/categories',
-  authorize('auction_manager', 'admin'),
-  wrap(catalog.listAllCategories),
-);
+adminRoutes.get('/categories', authorize('auction_manager', 'admin'), wrap(catalog.listAllCategories));
 adminRoutes.post('/categories', authorize('auction_manager', 'admin'), wrap(catalog.createCategory));
 adminRoutes.patch(
   '/categories/:publicId',

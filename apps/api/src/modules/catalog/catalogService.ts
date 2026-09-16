@@ -130,10 +130,7 @@ export async function setSellerStatus(input: {
     const before = await repo.findSellerById(input.sellerId, tx);
     if (!before) throw sellerNotFound(input.sellerId);
 
-    const seller = await repo.setSellerStatus(
-      { sellerId: input.sellerId, status: input.status },
-      tx,
-    );
+    const seller = await repo.setSellerStatus({ sellerId: input.sellerId, status: input.status }, tx);
     if (!seller) throw sellerNotFound(input.sellerId);
 
     await writeAuditLog(
@@ -167,9 +164,7 @@ export const toCategoryDto = (category: CategoryRecord): CategoryDto => ({
   isActive: category.isActive,
 });
 
-export async function listCategories(options: { includeInactive?: boolean } = {}): Promise<
-  CategoryRecord[]
-> {
+export async function listCategories(options: { includeInactive?: boolean } = {}): Promise<CategoryRecord[]> {
   return repo.listCategories({ activeOnly: options.includeInactive !== true });
 }
 
@@ -180,9 +175,9 @@ export async function listCategories(options: { includeInactive?: boolean } = {}
  * deeper tree would need breadcrumb and filtering work no surface asks for yet.
  * Nothing in the schema prevents more, so a later phase can deepen it.
  */
-export async function getCategoryTree(options: { includeInactive?: boolean } = {}): Promise<
-  CategoryTreeDto[]
-> {
+export async function getCategoryTree(
+  options: { includeInactive?: boolean } = {},
+): Promise<CategoryTreeDto[]> {
   const categories = await listCategories(options);
   const roots = categories.filter((category) => category.parentId === null);
   return roots.map((root) => ({
@@ -443,23 +438,25 @@ export async function createProduct(input: {
     }
 
     const slug = await resolveProductSlug({ desired: input.slug, title: input.title }, tx);
-    const product = await repo.insertProduct(
-      {
-        sellerId: input.sellerId,
-        categoryId: input.categoryId,
-        slug,
-        title: input.title,
-        description: input.description,
-        sku: input.sku,
-        brand: input.brand,
-        condition: input.condition,
-        specs: input.specs,
-        currency: input.currency,
-        retailPriceMinor: input.retailPriceMinor,
-        stockQuantity: input.stockQuantity,
-      },
-      tx,
-    ).catch(rethrowUniqueViolation(input.sku));
+    const product = await repo
+      .insertProduct(
+        {
+          sellerId: input.sellerId,
+          categoryId: input.categoryId,
+          slug,
+          title: input.title,
+          description: input.description,
+          sku: input.sku,
+          brand: input.brand,
+          condition: input.condition,
+          specs: input.specs,
+          currency: input.currency,
+          retailPriceMinor: input.retailPriceMinor,
+          stockQuantity: input.stockQuantity,
+        },
+        tx,
+      )
+      .catch(rethrowUniqueViolation(input.sku));
 
     await writeAuditLog(
       {
@@ -661,10 +658,7 @@ export async function createImageUploadSlot(input: {
   context?: OperationContext | undefined;
 }): Promise<ImageUploadTicket> {
   return withTransaction(async (tx) => {
-    const product = await getOwnedProduct(
-      { productId: input.productId, sellerId: input.sellerId },
-      tx,
-    );
+    const product = await getOwnedProduct({ productId: input.productId, sellerId: input.sellerId }, tx);
     if (product.status === 'archived') throw productArchived(product.id);
 
     const existing = await repo.countImages(product.id, tx);
@@ -737,10 +731,7 @@ export async function deleteProductImage(input: {
 }): Promise<void> {
   const removed = await withTransaction(async (tx) => {
     await getOwnedProduct({ productId: input.productId, sellerId: input.sellerId }, tx);
-    const image = await repo.findImageById(
-      { productId: input.productId, imageId: input.imageId },
-      tx,
-    );
+    const image = await repo.findImageById({ productId: input.productId, imageId: input.imageId }, tx);
     if (!image) throw imageNotFound(input.imageId);
 
     await repo.deleteImage({ productId: input.productId, imageId: input.imageId }, tx);

@@ -3,11 +3,7 @@ import { acceptsBids, AppError } from '@howlow/shared';
 import { loadConfig } from '../../../../config/index.js';
 import * as auctions from '../../../../modules/auctions/index.js';
 import { getLogger } from '../../../../shared/index.js';
-import {
-  auctionDetailKeyboard,
-  auctionListKeyboard,
-  CALLBACK,
-} from '../../keyboards/auctions.js';
+import { auctionDetailKeyboard, auctionListKeyboard, CALLBACK } from '../../keyboards/auctions.js';
 import { renderBiddingNotice, renderDetail, renderSummary } from '../../render/auctions.js';
 
 /**
@@ -49,8 +45,7 @@ async function sendAuctionList(ctx: Context, cursor: string | undefined): Promis
 
   if (page.auctions.length === 0) {
     await ctx.reply(
-      'There are no auctions open right now.\n\n' +
-        'New auctions are announced here as they are scheduled.',
+      'There are no auctions open right now.\n\n' + 'New auctions are announced here as they are scheduled.',
     );
     return;
   }

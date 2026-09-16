@@ -25,15 +25,17 @@ export const slugSchema = z
  * not made to invent URL syntax.
  */
 export function slugify(value: string): string {
-  return value
-    .normalize('NFKD')
-    // Strip diacritics so "Téléphone" becomes "telephone" rather than losing the word.
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 120)
-    .replace(/-+$/g, '');
+  return (
+    value
+      .normalize('NFKD')
+      // Strip diacritics so "Téléphone" becomes "telephone" rather than losing the word.
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 120)
+      .replace(/-+$/g, '')
+  );
 }
 
 export const SELLER_STATUSES = ['pending', 'approved', 'suspended', 'closed'] as const;
@@ -103,13 +105,7 @@ export const PRODUCT_STATUSES = ['draft', 'active', 'archived'] as const;
 export const productStatusSchema = z.enum(PRODUCT_STATUSES);
 export type ProductStatus = z.infer<typeof productStatusSchema>;
 
-export const PRODUCT_CONDITIONS = [
-  'new',
-  'refurbished',
-  'used_like_new',
-  'used_good',
-  'used_fair',
-] as const;
+export const PRODUCT_CONDITIONS = ['new', 'refurbished', 'used_like_new', 'used_good', 'used_fair'] as const;
 export const productConditionSchema = z.enum(PRODUCT_CONDITIONS);
 export type ProductCondition = z.infer<typeof productConditionSchema>;
 
@@ -154,10 +150,9 @@ export const productSchema = z.object({
 export type ProductDto = z.infer<typeof productSchema>;
 
 /** Positive integer minor amount as a decimal string. */
-const positiveMinorAmount = minorAmountSchema.refine(
-  (value) => !value.startsWith('-') && value !== '0',
-  { message: 'Amount must be greater than zero' },
-);
+const positiveMinorAmount = minorAmountSchema.refine((value) => !value.startsWith('-') && value !== '0', {
+  message: 'Amount must be greater than zero',
+});
 
 export const createProductSchema = z.object({
   title: z.string().trim().min(3).max(200),

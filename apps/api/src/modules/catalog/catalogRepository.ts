@@ -1,9 +1,4 @@
-import type {
-  Currency,
-  ProductCondition,
-  ProductStatus,
-  SellerStatus,
-} from '@howlow/shared';
+import type { Currency, ProductCondition, ProductStatus, SellerStatus } from '@howlow/shared';
 import { getPool, type Tx } from '../../db/index.js';
 import type {
   CategoryRecord,
@@ -55,10 +50,7 @@ const toSeller = (row: SellerRow): SellerRecord => ({
 const SELLER_COLUMNS = `id, user_id, display_name, status, payout_currency,
   commission_bps, approved_at, created_at`;
 
-export async function findSellerByUserId(
-  userId: string,
-  tx?: Tx,
-): Promise<SellerRecord | undefined> {
+export async function findSellerByUserId(userId: string, tx?: Tx): Promise<SellerRecord | undefined> {
   const { rows } = await runner(tx).query<SellerRow>(
     `SELECT ${SELLER_COLUMNS} FROM sellers WHERE user_id = $1`,
     [userId],
@@ -67,10 +59,9 @@ export async function findSellerByUserId(
 }
 
 export async function findSellerById(id: string, tx?: Tx): Promise<SellerRecord | undefined> {
-  const { rows } = await runner(tx).query<SellerRow>(
-    `SELECT ${SELLER_COLUMNS} FROM sellers WHERE id = $1`,
-    [id],
-  );
+  const { rows } = await runner(tx).query<SellerRow>(`SELECT ${SELLER_COLUMNS} FROM sellers WHERE id = $1`, [
+    id,
+  ]);
   return rows[0] ? toSeller(rows[0]) : undefined;
 }
 
@@ -131,10 +122,7 @@ const toCategory = (row: CategoryRow): CategoryRecord => ({
 
 const CATEGORY_COLUMNS = `id, parent_id, slug, name, description, position, is_active`;
 
-export async function listCategories(
-  options: { activeOnly: boolean },
-  tx?: Tx,
-): Promise<CategoryRecord[]> {
+export async function listCategories(options: { activeOnly: boolean }, tx?: Tx): Promise<CategoryRecord[]> {
   const { rows } = await runner(tx).query<CategoryRow>(
     `SELECT ${CATEGORY_COLUMNS} FROM categories
       WHERE ($1::boolean IS FALSE OR is_active)
@@ -144,10 +132,7 @@ export async function listCategories(
   return rows.map(toCategory);
 }
 
-export async function findCategoryBySlug(
-  slug: string,
-  tx?: Tx,
-): Promise<CategoryRecord | undefined> {
+export async function findCategoryBySlug(slug: string, tx?: Tx): Promise<CategoryRecord | undefined> {
   const { rows } = await runner(tx).query<CategoryRow>(
     `SELECT ${CATEGORY_COLUMNS} FROM categories WHERE slug = $1`,
     [slug],
@@ -327,10 +312,7 @@ export async function findProductBySlug(slug: string, tx?: Tx): Promise<ProductR
  * immediately and protects nothing.
  */
 export async function lockProductById(id: string, tx: Tx): Promise<ProductRecord | undefined> {
-  const { rows } = await tx.query<ProductRow>(
-    `${PRODUCT_SELECT} WHERE p.id = $1 FOR UPDATE OF p`,
-    [id],
-  );
+  const { rows } = await tx.query<ProductRow>(`${PRODUCT_SELECT} WHERE p.id = $1 FOR UPDATE OF p`, [id]);
   return rows[0] ? toProduct(rows[0]) : undefined;
 }
 
@@ -470,8 +452,7 @@ export async function listProducts(
   const last = products[products.length - 1];
   return {
     products,
-    nextCursor:
-      rows.length > filters.limit && last ? { createdAt: last.createdAt, id: last.id } : null,
+    nextCursor: rows.length > filters.limit && last ? { createdAt: last.createdAt, id: last.id } : null,
   };
 }
 
@@ -743,10 +724,7 @@ export async function sumHeldReservations(productId: string, tx?: Tx): Promise<n
 }
 
 /** Attach images to already-loaded products. */
-export async function withImages(
-  products: readonly ProductRecord[],
-  tx?: Tx,
-): Promise<ProductWithImages[]> {
+export async function withImages(products: readonly ProductRecord[], tx?: Tx): Promise<ProductWithImages[]> {
   const byProduct = await listImagesForProducts(
     products.map((product) => product.id),
     tx,

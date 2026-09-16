@@ -32,16 +32,7 @@ export {
 } from './auctionService.js';
 export type { AuctionConfig, AuctionListResult } from './auctionService.js';
 
-export {
-  approve,
-  cancel,
-  close,
-  open,
-  reject,
-  resume,
-  submitForApproval,
-  suspend,
-} from './lifecycle.js';
+export { approve, cancel, close, open, reject, resume, submitForApproval, suspend } from './lifecycle.js';
 export type { OpenOutcome, TransitionResult } from './lifecycle.js';
 
 export {

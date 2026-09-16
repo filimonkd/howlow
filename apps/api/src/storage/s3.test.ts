@@ -45,9 +45,7 @@ describe('SigV4 presigning matches botocore', () => {
       now: AT,
     });
     expect(result.url.split('?')[0]).toBe('https://examplebucket.s3.amazonaws.com/test.txt');
-    expect(result.signature).toBe(
-      'b5ab1465332fe99c36dabbeb2a8dbf1dba9cf5b01070bf0294752e2bfc7a3bde',
-    );
+    expect(result.signature).toBe('b5ab1465332fe99c36dabbeb2a8dbf1dba9cf5b01070bf0294752e2bfc7a3bde');
   });
 
   it('signs a path-style PUT for a nested key', () => {
@@ -60,9 +58,7 @@ describe('SigV4 presigning matches botocore', () => {
       now: AT,
     });
     expect(result.url.split('?')[0]).toBe(`http://localhost:9000/howlow-dev/${key}`);
-    expect(result.signature).toBe(
-      '59bbbc5261789c80e3aaa424ae403bef4e5e5777385b7acde1d00646a973bbac',
-    );
+    expect(result.signature).toBe('59bbbc5261789c80e3aaa424ae403bef4e5e5777385b7acde1d00646a973bbac');
   });
 
   /**
@@ -78,9 +74,7 @@ describe('SigV4 presigning matches botocore', () => {
       now: AT,
     });
     expect(result.url).toContain('X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost');
-    expect(result.signature).toBe(
-      '0290ab0585383876f19cd56220b0792e6e0b7331baf82bb90c8e3dedf196e868',
-    );
+    expect(result.signature).toBe('0290ab0585383876f19cd56220b0792e6e0b7331baf82bb90c8e3dedf196e868');
     // The client must send them back, so they are returned alongside the URL.
     expect(result.headers).toEqual({ 'content-type': 'image/png', 'content-length': '2048' });
   });
@@ -90,9 +84,7 @@ describe('SigV4 presigning matches botocore', () => {
       { ...MINIO, region: 'eu-west-1' },
       { method: 'DELETE', key: 'products/a/b/c.webp', expiresInSeconds: 60, now: AT },
     );
-    expect(result.signature).toBe(
-      '84765a5e6fae5281c9e834198c7691ead6dcc30bf6e4f33cd913a057b42219b1',
-    );
+    expect(result.signature).toBe('84765a5e6fae5281c9e834198c7691ead6dcc30bf6e4f33cd913a057b42219b1');
   });
 
   it('produces a different signature for any change to a signed value', () => {
@@ -164,9 +156,9 @@ describe('object keys', () => {
   });
 
   it('refuses a content type it has no extension for', () => {
-    expect(() =>
-      buildImageKey({ ...owner, contentType: 'application/x-msdownload' }),
-    ).toThrow(/unsupported content type/);
+    expect(() => buildImageKey({ ...owner, contentType: 'application/x-msdownload' })).toThrow(
+      /unsupported content type/,
+    );
     expect(() => buildImageKey({ ...owner, contentType: 'image/svg+xml' })).toThrow();
   });
 });

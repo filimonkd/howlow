@@ -77,9 +77,7 @@ export function AuctionDetail({
     void load();
   }, [load]);
 
-  const remaining = useCountdown(
-    state.kind === 'ready' ? state.auction.secondsRemaining : undefined,
-  );
+  const remaining = useCountdown(state.kind === 'ready' ? state.auction.secondsRemaining : undefined);
 
   if (state.kind === 'loading') {
     return (
@@ -180,9 +178,7 @@ export function AuctionDetail({
           <dt className="opacity-70">Ends</dt>
           <dd>{new Date(auction.endsAt).toLocaleString()}</dd>
           <dt className="opacity-70">{live ? 'Time left' : 'Countdown'}</dt>
-          <dd className="tabular-nums">
-            {formatRemaining(remaining ?? auction.secondsRemaining)}
-          </dd>
+          <dd className="tabular-nums">{formatRemaining(remaining ?? auction.secondsRemaining)}</dd>
         </dl>
 
         {auction.description !== null && <p className="mt-4 text-sm">{auction.description}</p>}
@@ -227,9 +223,9 @@ export function AuctionDetail({
           </li>
           <li>Nobody — including you — can see anyone else’s bids while the auction runs.</li>
           <li>
-            When it closes, the winner is whoever placed the <strong>lowest amount that exactly
-            one person bid</strong>. If every amount was bid by two or more people, there is no
-            winner.
+            When it closes, the winner is whoever placed the{' '}
+            <strong>lowest amount that exactly one person bid</strong>. If every amount was bid by two or more
+            people, there is no winner.
           </li>
           <li>The winner has {auction.terms.winnerPaymentHours} hours to pay.</li>
         </ol>

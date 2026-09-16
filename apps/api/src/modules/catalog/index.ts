@@ -35,12 +35,7 @@ export {
 } from './catalogService.js';
 export type { ProductPageResult } from './catalogService.js';
 
-export {
-  reconcileProductInventory,
-  releaseUnit,
-  reserveUnit,
-  reserveUnitStandalone,
-} from './inventory.js';
+export { reconcileProductInventory, releaseUnit, reserveUnit, reserveUnitStandalone } from './inventory.js';
 export type { InventoryReport, ReleaseOutcome, ReservationOutcome } from './inventory.js';
 
 export { CATALOG_ERRORS } from './errors.js';

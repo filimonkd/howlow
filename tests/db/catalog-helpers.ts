@@ -124,9 +124,7 @@ export interface AuctionTermsFixture {
 }
 
 /** Terms that pass every validation rule, for tests about something else. */
-export function validAuctionTerms(
-  overrides: Partial<AuctionTermsFixture> = {},
-): AuctionTermsFixture {
+export function validAuctionTerms(overrides: Partial<AuctionTermsFixture> = {}): AuctionTermsFixture {
   return {
     title: `Auction ${unique()}`,
     description: 'An auction description long enough to satisfy validation.',
@@ -308,10 +306,7 @@ export async function cleanup(client: pg.Client): Promise<void> {
     await client.query("SET LOCAL session_replication_role = 'replica'");
     const sellers = `SELECT id FROM sellers WHERE user_id IN (${users})`;
     const products = `SELECT id FROM products WHERE seller_id IN (${sellers})`;
-    await client.query(
-      `DELETE FROM inventory_reservations WHERE product_id IN (${products})`,
-      [domain],
-    );
+    await client.query(`DELETE FROM inventory_reservations WHERE product_id IN (${products})`, [domain]);
     await client.query(`DELETE FROM auctions WHERE seller_id IN (${sellers})`, [domain]);
     await client.query(`DELETE FROM product_images WHERE product_id IN (${products})`, [domain]);
     await client.query(`DELETE FROM products WHERE seller_id IN (${sellers})`, [domain]);

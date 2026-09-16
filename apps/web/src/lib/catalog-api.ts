@@ -63,9 +63,7 @@ export function fetchAuctions(query: Partial<AuctionListQuery> = {}): Promise<Au
 
 /** One auction, by uuid or slug — both are public references. */
 export function fetchAuction(reference: string): Promise<z.infer<typeof auctionDetailSchema>> {
-  return apiFetch(`/auctions/${encodeURIComponent(reference)}`, (value) =>
-    auctionDetailSchema.parse(value),
-  );
+  return apiFetch(`/auctions/${encodeURIComponent(reference)}`, (value) => auctionDetailSchema.parse(value));
 }
 
 // ---------------------------------------------------------------------------
@@ -103,11 +101,7 @@ export function updateProduct(
   productId: string,
   changes: Partial<NewProduct> & { status?: 'draft' | 'active' },
 ): Promise<ProductDto> {
-  return apiFetch(
-    `/seller/products/${productId}`,
-    (v) => productSchema.parse(v),
-    json(changes, 'PATCH'),
-  );
+  return apiFetch(`/seller/products/${productId}`, (v) => productSchema.parse(v), json(changes, 'PATCH'));
 }
 
 export function archiveProduct(productId: string): Promise<ProductDto> {
@@ -164,11 +158,7 @@ export interface NewAuction {
 }
 
 export function fetchMyAuctions(): Promise<AuctionPage> {
-  return apiFetch(
-    '/seller/auctions?limit=50&sort=newest',
-    (v) => auctionListSchema.parse(v),
-    authorized(),
-  );
+  return apiFetch('/seller/auctions?limit=50&sort=newest', (v) => auctionListSchema.parse(v), authorized());
 }
 
 export function fetchMyAuction(auctionId: string): Promise<AuctionAdminDetailDto> {
@@ -190,19 +180,11 @@ export function createAuction(input: NewAuction): Promise<AuctionAdminDetailDto>
 const transitionSchema = z.object({ changed: z.boolean(), auction: auctionAdminSchema });
 
 export function submitAuction(auctionId: string): Promise<{ changed: boolean }> {
-  return apiFetch(
-    `/seller/auctions/${auctionId}/submit`,
-    (v) => transitionSchema.parse(v),
-    json({}),
-  );
+  return apiFetch(`/seller/auctions/${auctionId}/submit`, (v) => transitionSchema.parse(v), json({}));
 }
 
 export function cancelMyAuction(auctionId: string, reason: string): Promise<{ changed: boolean }> {
-  return apiFetch(
-    `/seller/auctions/${auctionId}/cancel`,
-    (v) => transitionSchema.parse(v),
-    json({ reason }),
-  );
+  return apiFetch(`/seller/auctions/${auctionId}/cancel`, (v) => transitionSchema.parse(v), json({ reason }));
 }
 
 // ---------------------------------------------------------------------------
@@ -210,35 +192,19 @@ export function cancelMyAuction(auctionId: string, reason: string): Promise<{ ch
 // ---------------------------------------------------------------------------
 
 export function fetchPendingAuctions(): Promise<AuctionPage> {
-  return apiFetch(
-    '/admin/auctions/pending?limit=50',
-    (v) => auctionListSchema.parse(v),
-    authorized(),
-  );
+  return apiFetch('/admin/auctions/pending?limit=50', (v) => auctionListSchema.parse(v), authorized());
 }
 
 export function approveAuction(auctionId: string): Promise<{ changed: boolean }> {
-  return apiFetch(
-    `/admin/auctions/${auctionId}/approve`,
-    (v) => transitionSchema.parse(v),
-    json({}),
-  );
+  return apiFetch(`/admin/auctions/${auctionId}/approve`, (v) => transitionSchema.parse(v), json({}));
 }
 
 export function rejectAuction(auctionId: string, reason: string): Promise<{ changed: boolean }> {
-  return apiFetch(
-    `/admin/auctions/${auctionId}/reject`,
-    (v) => transitionSchema.parse(v),
-    json({ reason }),
-  );
+  return apiFetch(`/admin/auctions/${auctionId}/reject`, (v) => transitionSchema.parse(v), json({ reason }));
 }
 
 export function suspendAuction(auctionId: string, reason: string): Promise<{ changed: boolean }> {
-  return apiFetch(
-    `/admin/auctions/${auctionId}/suspend`,
-    (v) => transitionSchema.parse(v),
-    json({ reason }),
-  );
+  return apiFetch(`/admin/auctions/${auctionId}/suspend`, (v) => transitionSchema.parse(v), json({ reason }));
 }
 
 export function resumeAuction(auctionId: string): Promise<{ changed: boolean }> {
@@ -246,24 +212,13 @@ export function resumeAuction(auctionId: string): Promise<{ changed: boolean }> 
 }
 
 export function cancelAuction(auctionId: string, reason: string): Promise<{ changed: boolean }> {
-  return apiFetch(
-    `/admin/auctions/${auctionId}/cancel`,
-    (v) => transitionSchema.parse(v),
-    json({ reason }),
-  );
+  return apiFetch(`/admin/auctions/${auctionId}/cancel`, (v) => transitionSchema.parse(v), json({ reason }));
 }
 
 export function fetchAllCategories(): Promise<CategoryTreeDto[]> {
-  return apiFetch(
-    '/admin/categories',
-    (v) => categoryListSchema.parse(v).categories,
-    authorized(),
-  );
+  return apiFetch('/admin/categories', (v) => categoryListSchema.parse(v).categories, authorized());
 }
 
-export function createCategory(input: {
-  name: string;
-  parentId?: string;
-}): Promise<CategoryTreeDto> {
+export function createCategory(input: { name: string; parentId?: string }): Promise<CategoryTreeDto> {
   return apiFetch('/admin/categories', (v) => v as CategoryTreeDto, json(input));
 }

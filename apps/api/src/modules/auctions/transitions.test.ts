@@ -128,14 +128,7 @@ describe('terms and inventory', () => {
     expect(termsAreLocked('draft')).toBe(false);
     expect(termsAreLocked('pending_approval')).toBe(false);
     expect(termsAreLocked('scheduled')).toBe(false);
-    for (const status of [
-      'live',
-      'closing',
-      'calculating',
-      'completed',
-      'cancelled',
-      'suspended',
-    ] as const) {
+    for (const status of ['live', 'closing', 'calculating', 'completed', 'cancelled', 'suspended'] as const) {
       expect(termsAreLocked(status)).toBe(true);
     }
   });

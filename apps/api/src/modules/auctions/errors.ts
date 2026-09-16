@@ -136,11 +136,7 @@ export const unauthorizedAuctionOperation = (detail: string): AppError =>
  * The worker ran early. The database clock decides when an auction opens or
  * closes, so a job that fires before its time is refused rather than trusted.
  */
-export const auctionNotDue = (input: {
-  auctionId: string;
-  what: 'open' | 'close';
-  dueAt: Date;
-}): AppError =>
+export const auctionNotDue = (input: { auctionId: string; what: 'open' | 'close'; dueAt: Date }): AppError =>
   auctionError(
     'AUCTION_NOT_DUE',
     'CONFLICT',

@@ -27,10 +27,7 @@ export function AdminConsole(): React.JSX.Element {
   const reload = useCallback(async (): Promise<void> => {
     setLoadError(undefined);
     try {
-      const [queue, tree] = await Promise.all([
-        api.fetchPendingAuctions(),
-        api.fetchAllCategories(),
-      ]);
+      const [queue, tree] = await Promise.all([api.fetchPendingAuctions(), api.fetchAllCategories()]);
       setPending(queue.auctions);
       setCategories(tree);
     } catch (cause) {
@@ -61,9 +58,7 @@ export function AdminConsole(): React.JSX.Element {
         {pending === undefined ? (
           <p className="text-sm opacity-70">Loading…</p>
         ) : pending.length === 0 ? (
-          <p className="text-sm opacity-70">
-            Nothing is waiting for review. Submitted auctions appear here.
-          </p>
+          <p className="text-sm opacity-70">Nothing is waiting for review. Submitted auctions appear here.</p>
         ) : (
           <ul className="divide-y divide-black/10 dark:divide-white/15">
             {pending.map((auction) => (
@@ -141,9 +136,7 @@ export function AdminConsole(): React.JSX.Element {
             run(async () => {
               await api.createCategory({
                 name: categoryForm.values.name,
-                ...(categoryForm.values.parentId === ''
-                  ? {}
-                  : { parentId: categoryForm.values.parentId }),
+                ...(categoryForm.values.parentId === '' ? {} : { parentId: categoryForm.values.parentId }),
               });
               categoryForm.reset();
               setFeedback({ kind: 'info', message: 'Category created.' });
@@ -151,7 +144,11 @@ export function AdminConsole(): React.JSX.Element {
             });
           })}
         >
-          <Field label="New category name" value={categoryForm.values.name} onChange={categoryForm.set('name')} />
+          <Field
+            label="New category name"
+            value={categoryForm.values.name}
+            onChange={categoryForm.set('name')}
+          />
           <label className="mb-3 block text-sm">
             <span className="mb-1 block opacity-70">Parent (optional)</span>
             <select
