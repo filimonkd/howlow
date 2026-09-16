@@ -446,19 +446,35 @@ export function encodeCursor(cursor: string): string {
   return Buffer.from(cursor, 'utf8').toString('base64url');
 }
 
-export function decodeCursor(value: string | undefined): { value: Date; id: string } | undefined {
+/**
+ * The timestamp half stays a string and is never parsed into a `Date`: a
+ * `Date` holds milliseconds where `timestamptz` holds microseconds, and a
+ * cursor rounded to the millisecond skips the rows that share it — or, in an
+ * ascending sort, returns them for ever. The repository renders it at full
+ * precision and compares it as `$n::timestamptz`.
+ */
+const CURSOR_TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z$/;
+const CURSOR_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function decodeCursor(value: string | undefined): { value: string; id: string } | undefined {
   if (value === undefined) return undefined;
   const decoded = Buffer.from(value, 'base64url').toString('utf8');
   const [timestamp, id] = decoded.split('|');
-  const parsed = timestamp === undefined ? new Date(Number.NaN) : new Date(timestamp);
-  if (id === undefined || id === '' || Number.isNaN(parsed.getTime())) {
+  // A cursor is client-supplied. Rejecting it here keeps an unparseable
+  // timestamp from reaching `::timestamptz` and surfacing as a 500.
+  if (
+    timestamp === undefined ||
+    !CURSOR_TIMESTAMP_RE.test(timestamp) ||
+    id === undefined ||
+    !CURSOR_ID_RE.test(id)
+  ) {
     throw new AppError({
       code: 'VALIDATION_FAILED',
       message: 'Malformed auction pagination cursor',
       publicMessage: 'That page cursor is not valid.',
     });
   }
-  return { value: parsed, id };
+  return { value: timestamp, id };
 }
 
 // ---------------------------------------------------------------------------

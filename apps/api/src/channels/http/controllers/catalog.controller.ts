@@ -260,10 +260,10 @@ export async function setSellerStatus(req: Request, res: Response): Promise<void
  * Product cursors are opaque, like the wallet's: an encoded position, not an
  * offset. The list grows at the head, so an offset would shift under a reader.
  */
-const encodeProductCursor = (cursor: { createdAt: Date; id: string }): string =>
+const encodeProductCursor = (cursor: { createdAt: string; id: string }): string =>
   encodeCursor({ at: cursor.createdAt, id: cursor.id });
 
-const decodeProductCursor = (value: string): { createdAt: Date; id: string } => {
+const decodeProductCursor = (value: string): { createdAt: string; id: string } => {
   const cursor = decodeCursor(value);
   return { createdAt: cursor.at, id: cursor.id };
 };

@@ -19,17 +19,21 @@
  * Telegram is driven against a stub Bot API on localhost (TELEGRAM_API_ROOT),
  * so the outbound messages are captured and asserted rather than sent.
  *
- * Registration is rate limited per IP, so several runs in quick succession are
- * refused with 429. That is the limiter working; wait for the window or clear
- * the `ratelimit:register:<ip>` keys in Redis.
+ * Registration is rate limited per IP and every smoke script registers from
+ * 127.0.0.1, so the run clears the `ratelimit:*` counters first. See
+ * clear-rate-limits.mjs for why that belongs to the script.
  */
 import { spawn } from 'node:child_process';
 import http from 'node:http';
 import process from 'node:process';
 import pg from 'pg';
+import { clearRateLimits } from './clear-rate-limits.mjs';
 import { loadEnvFile } from './load-env.mjs';
 
 await loadEnvFile();
+// The limiter is keyed by IP, and every smoke script comes from 127.0.0.1.
+// Clearing the counters is this run's precondition, not a bypass of the rule.
+await clearRateLimits();
 
 const PORT = Number(process.env.SMOKE_PORT ?? 4302);
 const TELEGRAM_STUB_PORT = Number(process.env.SMOKE_TELEGRAM_PORT ?? 4303);
@@ -458,6 +462,30 @@ async function main() {
     'the approved auction did not appear in public discovery',
   );
   console.log('smoke-catalog: the approved auction is public, and leaks no bid data');
+
+  // --- following a real cursor, on every sort -----------------------------
+  // Only a walk over the wire catches a cursor that loses precision: the
+  // repositories page on a microsecond timestamp and a cursor rounded to the
+  // millisecond silently skips rows, or in an ascending sort returns them for
+  // ever. `limit=1` forces a page boundary at every row.
+  for (const sort of ['newest', 'ending_soon', 'starting_soon']) {
+    const seen = [];
+    let cursor;
+    let pages = 0;
+    for (;;) {
+      const query = `/auctions?sort=${sort}&limit=1${cursor === undefined ? '' : `&cursor=${encodeURIComponent(cursor)}`}`;
+      const page = await call(query);
+      check(page.status === 200, `GET ${query} returned ${page.status}`);
+      seen.push(...page.body.auctions.map((item) => item.id));
+      pages += 1;
+      check(pages <= 60, `paging ${sort} did not terminate after ${pages} pages`);
+      if (page.body.nextCursor === null || page.body.nextCursor === undefined) break;
+      cursor = page.body.nextCursor;
+    }
+    check(new Set(seen).size === seen.length, `paging ${sort} returned an auction twice`);
+    check(seen.includes(auctionId), `paging ${sort} skipped the auction under test`);
+  }
+  console.log('smoke-catalog: every sort pages to the end without repeating or skipping');
 
   // --- both channels reach the same auction -------------------------------
   const before = sent.length;

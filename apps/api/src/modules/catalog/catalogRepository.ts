@@ -252,6 +252,8 @@ interface ProductRow {
   status: ProductStatus;
   created_at: Date;
   updated_at: Date;
+  /** created_at at full microsecond precision, for keyset pagination. */
+  cursor_at: string;
 }
 
 const toProduct = (row: ProductRow): ProductRecord => ({
@@ -282,7 +284,8 @@ const PRODUCT_SELECT = `
          p.category_id, c.slug AS category_slug,
          p.slug, p.title, p.description, p.sku, p.brand, p.condition, p.specs,
          p.currency, p.retail_price_minor, p.stock_quantity, p.reserved_quantity,
-         p.status, p.created_at, p.updated_at
+         p.status, p.created_at, p.updated_at,
+         to_char(p.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
     FROM products p
     JOIN sellers s ON s.id = p.seller_id
     LEFT JOIN categories c ON c.id = p.category_id`;
@@ -411,7 +414,24 @@ export async function updateProduct(
 
 export interface ProductPage {
   readonly products: ProductRecord[];
-  readonly nextCursor: { createdAt: Date; id: string } | null;
+  readonly nextCursor: ProductCursor | null;
+}
+
+/**
+ * Where the next page resumes.
+ *
+ * `createdAt` is the database's own text rendering, not a `Date`: `timestamptz`
+ * keeps microseconds and a JavaScript `Date` only milliseconds, so a cursor
+ * round-tripped through `Date` lands on a different instant than the row it
+ * came from. In a DESC keyset that truncated cursor sorts *after* any row
+ * sharing its millisecond with a smaller microsecond value, and those rows are
+ * skipped — silently, and only when a page boundary happens to fall inside a
+ * millisecond. Carrying the value as text keeps it exact and still lets
+ * PostgreSQL use the index, because the comparison is `$n::timestamptz`.
+ */
+export interface ProductCursor {
+  readonly createdAt: string;
+  readonly id: string;
 }
 
 /**
@@ -427,7 +447,7 @@ export async function listProducts(
     status?: ProductStatus | undefined;
     categorySlug?: string | undefined;
     limit: number;
-    cursor?: { createdAt: Date; id: string } | undefined;
+    cursor?: ProductCursor | undefined;
   },
   tx?: Tx,
 ): Promise<ProductPage> {
@@ -449,10 +469,10 @@ export async function listProducts(
     ],
   );
   const products = rows.slice(0, filters.limit).map(toProduct);
-  const last = products[products.length - 1];
+  const last = rows[products.length - 1];
   return {
     products,
-    nextCursor: rows.length > filters.limit && last ? { createdAt: last.createdAt, id: last.id } : null,
+    nextCursor: rows.length > filters.limit && last ? { createdAt: last.cursor_at, id: last.id } : null,
   };
 }
 

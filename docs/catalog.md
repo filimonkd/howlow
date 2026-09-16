@@ -100,6 +100,15 @@ archived. Archival is refused while an unfinished auction still depends on the
 product (`PRODUCT_IN_USE`); once nothing unfinished remains, the row stays and
 the status changes.
 
+### Pagination
+
+Product listings page by keyset on `(created_at, id)`, newest first: the list
+grows at the head, so an offset would shift under a reader between pages. The
+cursor timestamp is carried as text at full microsecond precision and never
+parsed into a `Date` — see the pagination section of
+[auctions.md](./auctions.md#pagination) for why a millisecond-truncated cursor
+silently drops rows, and what the repositories do instead.
+
 ### Reference price
 
 `retail_price_minor` is **product metadata**: what the item retails for. It is
