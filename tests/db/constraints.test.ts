@@ -184,7 +184,24 @@ describe('catalog integrity', () => {
       client.query(`UPDATE products SET stock_quantity = -1 WHERE id = $1`, [fx.productId]),
     );
     expect(failure.code).toBe('23514');
-    expect(failure.constraint).toBe('products_stock_non_negative');
+    // Negative stock violates two CHECKs at once — stock must be non-negative,
+    // and reserved units must not exceed stock — and PostgreSQL reports
+    // whichever it evaluates first. Either refusal is the guarantee this test
+    // is about, so both are accepted rather than pinning an evaluation order
+    // the database does not promise.
+    expect([
+      'products_stock_non_negative',
+      'products_reserved_within_stock',
+    ]).toContain(failure.constraint);
+  });
+
+  it('rejects reserving more units than exist', async () => {
+    const failure = await expectRejected(client, () =>
+      client.query(`UPDATE products SET reserved_quantity = stock_quantity + 1 WHERE id = $1`, [
+        fx.productId,
+      ]),
+    );
+    expect(failure.constraint).toBe('products_reserved_within_stock');
   });
 
   it('rejects a non-positive retail price', async () => {
