@@ -67,6 +67,52 @@ describe('architecture boundaries', () => {
     expect(output).toMatch(/Only modules\/wallet may touch wallet SQL/);
   });
 
+  /**
+   * Inventory reservation is the catalog rule most worth protecting: a code
+   * path that bypasses `reserveUnit` can promise one product unit to two
+   * auctions, which is the overselling this phase exists to prevent.
+   */
+  it('stops a channel from reaching catalog SQL directly', async () => {
+    const output = await lintFixture(
+      HTTP_FIXTURE,
+      "import { adjustReservedQuantity } from '../../../modules/catalog/catalogRepository.js';\nexport const fixture = adjustReservedQuantity;\n",
+    );
+    expect(output).toMatch(/Only modules\/catalog may touch catalog SQL/);
+  });
+
+  /**
+   * A status written directly would bypass the transition table, which is the
+   * only thing that makes "DRAFT cannot become LIVE" true.
+   */
+  it('stops a channel from reaching auction SQL directly', async () => {
+    const output = await lintFixture(
+      TELEGRAM_FIXTURE,
+      "import { applyTransition } from '../../../modules/auctions/auctionRepository.js';\nexport const fixture = applyTransition;\n",
+    );
+    expect(output).toMatch(/Only modules\/auctions may touch auction SQL/);
+  });
+
+  it('stops one module from reaching another module\'s SQL', async () => {
+    const output = await lintFixture(
+      MODULE_FIXTURE,
+      "import { applyTransition } from '../auctions/auctionRepository.js';\nexport const fixture = applyTransition;\n",
+    );
+    expect(output).toMatch(/Only modules\/auctions may touch auction SQL/);
+  });
+
+  it('stops the worker from reaching catalog or auction SQL directly', async () => {
+    for (const [importPath, expected] of [
+      ['@howlow/api/modules/catalog/catalogRepository.js', /Only modules\/catalog may touch catalog SQL/],
+      ['@howlow/api/modules/auctions/auctionRepository.js', /Only modules\/auctions may touch auction SQL/],
+    ] as const) {
+      const output = await lintFixture(
+        WORKER_FIXTURE,
+        `import * as fixtureImport from '${importPath}';\nexport const fixture = fixtureImport;\n`,
+      );
+      expect(output).toMatch(expected);
+    }
+  });
+
   it('stops the worker from reaching wallet SQL directly', async () => {
     const output = await lintFixture(
       WORKER_FIXTURE,
