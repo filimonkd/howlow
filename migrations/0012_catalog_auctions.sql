@@ -293,9 +293,10 @@ CREATE UNIQUE INDEX inventory_reservations_held_key
 CREATE INDEX inventory_reservations_product_idx
   ON inventory_reservations (product_id, state);
 
-CREATE TRIGGER inventory_reservations_set_updated_at
-  BEFORE UPDATE ON inventory_reservations
-  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+-- No set_updated_at trigger here, deliberately: the table has no updated_at
+-- column and does not need one. A reservation is written once and then
+-- transitions at most twice, and `released_at`/`consumed_at` record exactly
+-- when, which a generic updated_at would only duplicate less precisely.
 
 COMMENT ON TABLE inventory_reservations IS
   'The record of which auction holds which product unit. products.reserved_quantity is a cache.';

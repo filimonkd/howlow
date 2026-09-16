@@ -91,10 +91,13 @@ export async function setSellerStatus(
   tx?: Tx,
 ): Promise<SellerRecord | undefined> {
   const { rows } = await runner(tx).query<SellerRow>(
-    // The approved_at CHECK ties the timestamp to the status, so both move together.
+    // The approved_at CHECK ties the timestamp to the status, so both move
+    // together. $2 is cast explicitly at each use: PostgreSQL cannot deduce one
+    // type for a parameter used as both an enum and a text comparison.
     `UPDATE sellers
-        SET status = $2,
-            approved_at = CASE WHEN $2 = 'approved' THEN COALESCE(approved_at, now()) ELSE NULL END
+        SET status = $2::seller_status,
+            approved_at = CASE WHEN $2::text = 'approved'
+                               THEN COALESCE(approved_at, now()) ELSE NULL END
       WHERE id = $1
       RETURNING ${SELLER_COLUMNS}`,
     [input.sellerId, input.status],
@@ -595,21 +598,33 @@ export async function deleteImage(
 }
 
 /**
+ * The offset positions are parked at while a reorder is in flight.
+ *
+ * Comfortably above any real position, since a product may hold at most
+ * MAX_PRODUCT_IMAGES of them, so the parked range cannot collide with the
+ * 0..n-1 range being written back.
+ */
+const REORDER_OFFSET = 1000;
+
+/**
  * Apply a new display order.
  *
  * Positions and the primary flag are both unique per product, so the rows
  * cannot be rewritten one at a time without transiently colliding. Everything
- * is pushed to a temporary negative range first, then written back in order —
- * all inside the caller's transaction, so no reader ever sees the gap.
+ * is parked at a high offset first, then written back in order — all inside the
+ * caller's transaction, so no reader ever sees the gap.
+ *
+ * The offset is added rather than subtracted because `position >= 0` is a CHECK
+ * constraint: parking the rows below zero fails, which is how this was found.
  */
 export async function applyImageOrder(
   input: { productId: string; imageIds: readonly string[] },
   tx: Tx,
 ): Promise<void> {
   await tx.query(
-    `UPDATE product_images SET position = -1 - position, is_primary = false
+    `UPDATE product_images SET position = position + $2, is_primary = false
       WHERE product_id = $1`,
-    [input.productId],
+    [input.productId, REORDER_OFFSET],
   );
   await tx.query(
     `UPDATE product_images AS img
