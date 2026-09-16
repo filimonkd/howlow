@@ -18,6 +18,7 @@ export {
   getAuction,
   getAuctionByReference,
   getOwnedAuction,
+  getPublicAuction,
   imagesForAuction,
   ladderSize,
   listAuctionsForOwner,

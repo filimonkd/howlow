@@ -40,6 +40,11 @@ export const SELLER_STATUSES = ['pending', 'approved', 'suspended', 'closed'] as
 export const sellerStatusSchema = z.enum(SELLER_STATUSES);
 export type SellerStatus = z.infer<typeof sellerStatusSchema>;
 
+/** A staff decision on a seller account. */
+export const sellerStatusChangeSchema = z.object({
+  status: sellerStatusSchema,
+});
+
 export const sellerSchema = z.object({
   id: z.uuid(),
   displayName: z.string(),

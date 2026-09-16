@@ -568,6 +568,90 @@ describe('term immutability', () => {
   });
 });
 
+describe('public visibility', () => {
+  /**
+   * An unpublished auction must not be readable by anyone who knows its
+   * address. Found by probing the real endpoint: the listing filtered by status
+   * but the detail read did not, so a draft's terms, seller and product were
+   * publicly readable.
+   */
+  it('hides an auction that is not publicly visible', async () => {
+    const { auctionId } = await draft();
+
+    // Draft.
+    let refusal = await domainRejection(auctions.getPublicAuction(auctionId));
+    expect(refusal.domainCode).toBe('AUCTION_NOT_FOUND');
+    // NOT_FOUND rather than FORBIDDEN, so the answer does not confirm it exists.
+    expect(refusal.code).toBe('NOT_FOUND');
+
+    // Awaiting review.
+    await auctions.submitForApproval({ auctionId, sellerId: seller.sellerId });
+    refusal = await domainRejection(auctions.getPublicAuction(auctionId));
+    expect(refusal.domainCode).toBe('AUCTION_NOT_FOUND');
+
+    // Approved: now public.
+    await auctions.approve({ auctionId, actorUserId: manager });
+    const visible = await auctions.getPublicAuction(auctionId);
+    expect(visible.status).toBe('scheduled');
+
+    // Suspended: hidden again while it is under review.
+    await auctions.suspend({ auctionId, reason: 'Hidden while investigated', actorUserId: manager });
+    refusal = await domainRejection(auctions.getPublicAuction(auctionId));
+    expect(refusal.domainCode).toBe('AUCTION_NOT_FOUND');
+  });
+
+  it('reads a public auction by slug as well as by id', async () => {
+    const { auctionId } = await draft();
+    await auctions.submitForApproval({ auctionId, sellerId: seller.sellerId });
+    const approved = await auctions.approve({ auctionId, actorUserId: manager });
+
+    const bySlug = await auctions.getPublicAuction(approved.auction.slug!);
+    expect(bySlug.id).toBe(auctionId);
+  });
+
+  it('never lists an unpublished auction, whatever status is requested', async () => {
+    const { auctionId } = await draft();
+
+    for (const status of ['draft', 'pending_approval', 'suspended'] as const) {
+      const page = await auctions.listPublicAuctions({ status, sort: 'newest', limit: 50 });
+      expect(page.auctions.map((auction) => auction.id)).not.toContain(auctionId);
+    }
+
+    // And with no filter at all.
+    const unfiltered = await auctions.listPublicAuctions({ sort: 'newest', limit: 50 });
+    expect(unfiltered.auctions.map((auction) => auction.id)).not.toContain(auctionId);
+  });
+
+  /**
+   * The public payload carries nothing a bidder could use to work out the
+   * lowest unique bid.
+   */
+  it('exposes no bid counts, bidders or uniqueness signal', async () => {
+    const { auctionId } = await live();
+    const auction = await auctions.getPublicAuction(auctionId);
+    const dto = auctions.toDetailDto(auction, []);
+    const keys = Object.keys(dto);
+
+    expect(keys).not.toContain('bidCount');
+    expect(keys).not.toContain('participantCount');
+    expect(keys).not.toContain('bids');
+    expect(keys).not.toContain('uniqueAmounts');
+    expect(keys).not.toContain('winnerUserId');
+    expect(keys).not.toContain('sellerId');
+
+    // The terms a bidder needs, and only those.
+    expect(Object.keys(dto.terms).sort()).toEqual([
+      'bidFeeMinor',
+      'bidIncrementMinor',
+      'currency',
+      'maxBidMinor',
+      'maxBidsPerUser',
+      'minBidMinor',
+      'winnerPaymentHours',
+    ]);
+  });
+});
+
 describe('product archival', () => {
   it('refuses to archive a product an unfinished auction depends on', async () => {
     const { auctionId, productId } = await live();

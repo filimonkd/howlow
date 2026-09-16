@@ -333,6 +333,26 @@ export async function getAuctionByReference(reference: string): Promise<AuctionW
   return auction;
 }
 
+/**
+ * An auction as a member of the public may see it.
+ *
+ * `getAuctionByReference` deliberately does not filter by status — staff and
+ * the owning seller need to read a draft — so the public path must, and it
+ * refuses with NOT_FOUND rather than FORBIDDEN so the response does not
+ * confirm that an unpublished auction exists at that address.
+ *
+ * Without this, a draft's terms, seller and product were readable by anyone who
+ * knew or guessed its id or slug, which an HTTP probe of the real endpoint is
+ * what caught.
+ */
+export async function getPublicAuction(reference: string): Promise<AuctionWithDisplay> {
+  const auction = await getAuctionByReference(reference);
+  if (!(PUBLICLY_VISIBLE_STATUSES as readonly AuctionStatus[]).includes(auction.status)) {
+    throw auctionNotFound(reference);
+  }
+  return auction;
+}
+
 export async function getOwnedAuction(input: {
   auctionId: string;
   sellerId: string;
