@@ -22,6 +22,7 @@ import {
   auctionNotStarted,
   bidLimitExceeded,
   bidderNotEligible,
+  asBidWalletError,
   duplicateAmount,
   duplicateAmountUnknown,
 } from './errors.js';
@@ -398,23 +399,26 @@ async function chargeFee(args: {
     return { balanceMinor: free.availableMinor };
   }
 
-  const movement = await wallet.debit(
-    'bid_fee',
-    {
-      userId: input.userId,
-      amountMinor: feeMinor,
-      currency: auction.currency,
-      referenceType: 'auction',
-      referenceId: auction.id,
-      memo: `${String(bids.length)} bid(s)`,
-      // Namespaced: the wallet's key space spans every operation on a wallet,
-      // so a client reusing one key for a bid and a deposit must not collide.
-      idempotencyKey: `${BID_SCOPE_PREFIX}:${input.idempotencyKey}`,
-      actorUserId: input.userId,
-      channel: input.channel,
-      ...(context !== undefined ? { context } : {}),
-    },
-    tx,
+  const movement = await debitOrTranslate(() =>
+    wallet.debit(
+      'bid_fee',
+      {
+        userId: input.userId,
+        amountMinor: feeMinor,
+        currency: auction.currency,
+        referenceType: 'auction',
+        referenceId: auction.id,
+        memo: `${String(bids.length)} bid(s)`,
+        // Namespaced: the wallet's key space spans every operation on a
+        // wallet, so a client reusing one key for a bid and a deposit must
+        // not collide.
+        idempotencyKey: `${BID_SCOPE_PREFIX}:${input.idempotencyKey}`,
+        actorUserId: input.userId,
+        channel: input.channel,
+        ...(context !== undefined ? { context } : {}),
+      },
+      tx,
+    ),
   );
 
   // The bids exist before the entry does, because the wallet lock is taken
@@ -422,6 +426,21 @@ async function chargeFee(args: {
   await repo.attachWalletEntry({ bidIds: bids.map((bid) => bid.id), walletEntryId: movement.entryId }, tx);
 
   return { balanceMinor: movement.balanceAfterMinor };
+}
+
+/**
+ * Run a wallet movement, restating its refusals in the bid vocabulary.
+ *
+ * Only the refusals a bidder can act on are translated; see
+ * `asBidWalletError`. A non-wallet failure is not touched.
+ */
+async function debitOrTranslate<T>(movement: () => Promise<T>): Promise<T> {
+  try {
+    return await movement();
+  } catch (error) {
+    if (AppError.is(error)) throw asBidWalletError(error);
+    throw error;
+  }
 }
 
 function isUniqueViolation(error: unknown): boolean {

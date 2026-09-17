@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AUCTION_ALGORITHM_VERSION } from '@howlow/shared';
 import { adminRoutes } from './admin.routes.js';
 import { authRoutes } from './auth.routes.js';
+import { bidRoutes } from './bid.routes.js';
 import { publicCatalogRoutes } from './catalog.routes.js';
 import { sellerRoutes } from './seller.routes.js';
 import { healthRoutes } from './health.routes.js';
@@ -9,8 +10,8 @@ import { meRoutes } from './me.routes.js';
 
 /**
  * The website's single API surface. Each router delegates straight into the
- * same application services the Telegram channel uses; later phases add bids
- * and orders alongside these.
+ * same application services the Telegram channel uses; later phases add orders
+ * alongside these.
  */
 export function createApiRouter(): Router {
   const router = Router();
@@ -20,6 +21,10 @@ export function createApiRouter(): Router {
   router.use('/me', meRoutes);
   router.use('/seller', sellerRoutes);
   router.use('/admin', adminRoutes);
+  // Bidding is mounted before public discovery so `/auctions/:publicId/bids`
+  // is matched by the authenticated router and never falls through to the
+  // unauthenticated `/auctions/:publicId`.
+  router.use('/auctions', bidRoutes);
   // Public discovery is mounted last so a named route above always wins.
   router.use('/', publicCatalogRoutes);
 

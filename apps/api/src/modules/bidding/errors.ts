@@ -191,3 +191,56 @@ export const idempotencyInProgress = (key: string): AppError =>
     `Idempotency key ${key} is already being processed`,
     'That submission is still being processed. Please try again in a moment.',
   );
+
+// ---------------------------------------------------------------------------
+// Money
+// ---------------------------------------------------------------------------
+
+/**
+ * Wallet refusals, restated in the bid vocabulary.
+ *
+ * The wallet module raises its own errors carrying `details.walletError`,
+ * which is right for wallet callers. A bidding client is told to branch on
+ * `details.bidError`, so a debit refused for insufficient funds would arrive
+ * with the correct HTTP status and no bid code at all — and every client
+ * mapping bid errors would fall through to a generic message on the two
+ * failures bidders hit most. Found by probing the real endpoint, not by
+ * reading the module.
+ *
+ * The wallet's own code is kept in `details.walletError` so nothing is lost
+ * for debugging; what is added is the `bidError` the contract promises.
+ */
+export function asBidWalletError(error: AppError): AppError {
+  const walletCode = error.details?.['walletError'];
+
+  if (walletCode === 'INSUFFICIENT_FUNDS') {
+    return bidError(
+      'INSUFFICIENT_FUNDS',
+      'INSUFFICIENT_FUNDS',
+      error.message,
+      'Your wallet does not have enough to cover the fee for those bids.',
+      { ...error.details },
+    );
+  }
+  if (walletCode === 'WALLET_FROZEN') {
+    return bidError(
+      'WALLET_FROZEN',
+      'FORBIDDEN',
+      error.message,
+      'Your wallet is on hold, so bids cannot be charged. Please contact support.',
+      { ...error.details },
+    );
+  }
+  if (walletCode === 'IDEMPOTENCY_CONFLICT' || walletCode === 'DUPLICATE_OPERATION') {
+    return bidError(
+      'IDEMPOTENCY_CONFLICT',
+      'CONFLICT',
+      error.message,
+      'That submission key was already used for a different charge.',
+      { ...error.details },
+    );
+  }
+  // Anything else — a currency mismatch, a ledger integrity failure — is not a
+  // bidding condition and is not dressed up as one. It travels unchanged.
+  return error;
+}
