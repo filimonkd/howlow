@@ -246,14 +246,16 @@ export async function domainRejection(operation: Promise<unknown>): Promise<{
       code?: unknown;
       publicMessage?: unknown;
       message?: unknown;
-      details?: { catalogError?: unknown; auctionError?: unknown };
+      details?: { catalogError?: unknown; auctionError?: unknown; bidError?: unknown };
     };
     const domainCode =
-      typeof app.details?.auctionError === 'string'
-        ? app.details.auctionError
-        : typeof app.details?.catalogError === 'string'
-          ? app.details.catalogError
-          : 'NOT_A_DOMAIN_ERROR';
+      typeof app.details?.bidError === 'string'
+        ? app.details.bidError
+        : typeof app.details?.auctionError === 'string'
+          ? app.details.auctionError
+          : typeof app.details?.catalogError === 'string'
+            ? app.details.catalogError
+            : 'NOT_A_DOMAIN_ERROR';
     return {
       code: typeof app.code === 'string' ? app.code : 'UNKNOWN',
       domainCode,
@@ -278,9 +280,12 @@ export async function settle<T>(
       fulfilled.push(result.value);
       continue;
     }
-    const details = (result.reason as { details?: { catalogError?: unknown; auctionError?: unknown } })
-      .details;
-    const code = details?.auctionError ?? details?.catalogError;
+    const details = (
+      result.reason as {
+        details?: { catalogError?: unknown; auctionError?: unknown; bidError?: unknown };
+      }
+    ).details;
+    const code = details?.bidError ?? details?.auctionError ?? details?.catalogError;
     if (typeof code === 'string') domainErrors.push(code);
     else otherErrors.push(result.reason);
   }
@@ -306,6 +311,14 @@ export async function cleanup(client: pg.Client): Promise<void> {
     await client.query("SET LOCAL session_replication_role = 'replica'");
     const sellers = `SELECT id FROM sellers WHERE user_id IN (${users})`;
     const products = `SELECT id FROM products WHERE seller_id IN (${sellers})`;
+    const auctions = `SELECT id FROM auctions WHERE seller_id IN (${sellers})`;
+    // Bids and participants reference both the auction and the bidder, so they
+    // go before either. `idempotency_keys` is keyed by the submitting user.
+    await client.query(`DELETE FROM bids WHERE auction_id IN (${auctions})`, [domain]);
+    await client.query(`DELETE FROM bids WHERE user_id IN (${users})`, [domain]);
+    await client.query(`DELETE FROM auction_participants WHERE auction_id IN (${auctions})`, [domain]);
+    await client.query(`DELETE FROM auction_participants WHERE user_id IN (${users})`, [domain]);
+    await client.query(`DELETE FROM idempotency_keys WHERE user_id IN (${users})`, [domain]);
     await client.query(`DELETE FROM inventory_reservations WHERE product_id IN (${products})`, [domain]);
     await client.query(`DELETE FROM auctions WHERE seller_id IN (${sellers})`, [domain]);
     await client.query(`DELETE FROM product_images WHERE product_id IN (${products})`, [domain]);

@@ -47,7 +47,8 @@ import { assertAmountsAllowed, assertNoRepeats, parseAmounts, totalFee } from '.
  *   1. **auction** — `auctions.lockForBidding`. The serialisation point. Every
  *      lifecycle transition takes this lock first too, which is what makes the
  *      rest of this list safe.
- *   2. **product / inventory** — read, not locked. See `assertDeliverable`.
+ *   2. **product / inventory** — read in this transaction, not locked. See
+ *      `assertDeliverable`.
  *   3. **wallet** — taken inside `walletService.debit`, which locks the wallet
  *      row by primary key.
  *   4. **participant** — `lockOrCreateParticipant`.
@@ -145,7 +146,7 @@ export async function submitBids(
     assertAmountsAllowed(amountsMinor, locked);
 
     // 5. The auction must still be able to deliver what it is selling.
-    await assertDeliverable(locked);
+    await assertDeliverable(locked, tx);
 
     // 6. The participant row, locked. The bid limit is decided here.
     const { participant, inserted } = await repo.lockOrCreateParticipant(
@@ -321,8 +322,14 @@ async function lockedNow(tx: Tx): Promise<Date> {
  * idempotent and already made — re-reserving per bid would double-count
  * inventory, which the brief for this phase explicitly forbids.
  */
-async function assertDeliverable(auction: AuctionRecord): Promise<void> {
-  const reservation = await findHeldReservation(auction.id);
+async function assertDeliverable(auction: AuctionRecord, tx: Tx): Promise<void> {
+  // **In the caller's transaction**, not on a connection of its own. A read
+  // that checked out a second connection while this transaction held the
+  // first would need two connections per bid, and `DATABASE_POOL_MAX`
+  // concurrent bids would then deadlock the pool: every request holding one
+  // connection and waiting for a second that only another request could
+  // release. Found by a concurrency test hanging, not by reading the code.
+  const reservation = await findHeldReservation(auction.id, tx);
   if (!reservation) {
     // The auction is live with nothing reserved. That is an inconsistency, not
     // a user error: refusing the bid is the safe side, because the alternative
