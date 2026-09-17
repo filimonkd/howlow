@@ -20,8 +20,20 @@ export const CALLBACK = {
   auction: 'a',
   /** A page of the listing: `al:<cursor or 0>`. */
   auctionList: 'al',
-  /** The bidding placeholder: `ab:<uuid>`. */
+  /** Begin bidding on one auction: `ab:<uuid>`. */
   auctionBid: 'ab',
+  /**
+   * Submit the draft the user has already confirmed on screen: `bc`.
+   *
+   * No auction id and no amounts in the payload. Both live in the draft the
+   * server minted when it showed the confirmation, keyed by the Telegram user
+   * — so a crafted payload cannot submit amounts the user never saw, and a
+   * replayed one cannot submit to a different auction. This is what "use
+   * compact identifiers, never state" means in practice.
+   */
+  bidConfirm: 'bc',
+  /** Discard the draft: `bx`. */
+  bidCancel: 'bx',
 } as const;
 
 /** Telegram's hard limit on callback data. */
@@ -67,9 +79,10 @@ export function auctionListKeyboard(input: {
 /**
  * The detail keyboard.
  *
- * The bidding button is present but says what it is: Phase 5 implements
- * bidding, and a button that silently did nothing would be worse than one that
- * explains itself.
+ * The bid button offers to bid only when the auction is actually taking bids.
+ * Whether it does is re-decided server-side when the button is pressed: this
+ * is a rendering of the state a moment ago, and an auction can close between
+ * the message being sent and the button being tapped.
  */
 export function auctionDetailKeyboard(input: {
   auctionId: string;
@@ -81,11 +94,39 @@ export function auctionDetailKeyboard(input: {
       [{ text: 'Open on the website', url: input.webUrl }],
       [
         {
-          text: input.acceptsBids ? 'Bidding — coming soon' : 'Not taking bids',
+          text: input.acceptsBids ? '💸 Place a bid' : 'Not taking bids',
           callback_data: bidCallback(input.auctionId),
         },
       ],
       [{ text: '◂ Back to auctions', callback_data: `${CALLBACK.auctionList}:0` }],
+    ],
+  };
+}
+
+/**
+ * Confirm or discard a bid draft.
+ *
+ * Both payloads are bare verbs. Everything the submission needs — the auction,
+ * the amounts, and the idempotency key that makes a double-tap harmless — is
+ * in the server-side draft.
+ */
+export function bidConfirmKeyboard(): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [
+        { text: '✅ Confirm', callback_data: CALLBACK.bidConfirm },
+        { text: '✖ Cancel', callback_data: CALLBACK.bidCancel },
+      ],
+    ],
+  };
+}
+
+/** After a submission: straight back to the auction the user just bid on. */
+export function bidResultKeyboard(auctionId: string): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [{ text: 'Back to the auction', callback_data: auctionCallback(auctionId) }],
+      [{ text: '◂ All auctions', callback_data: `${CALLBACK.auctionList}:0` }],
     ],
   };
 }

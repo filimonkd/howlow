@@ -45,7 +45,9 @@ const REQUIRED_TABLES = [
 const REQUIRED_INDEXES = [
   // The duplicate-bid rule.
   'bids_valid_amount_unique_key',
-  'bids_idempotency_key_unique',
+  // Batch-safe request-level backstop; replaced bids_idempotency_key_unique,
+  // which permitted only one bid row per key. See migration 0013.
+  'bids_idempotency_amount_unique',
   'bids_auction_amount_idx',
   'auction_participants_unique_key',
   'auction_results_auction_id_key',
@@ -72,6 +74,9 @@ const REQUIRED_CONSTRAINTS = [
   ['auctions', 'auctions_algorithm_is_lub_v1'],
   ['auctions', 'auctions_max_bids_per_user_positive'],
   ['bids', 'bids_amount_positive'],
+  // Live counters cannot drift below zero or claim more bidders than bids.
+  ['auctions', 'auctions_total_bids_non_negative'],
+  ['auctions', 'auctions_participants_within_bids'],
   ['products', 'products_stock_non_negative'],
   ['wallets', 'wallets_available_non_negative'],
   ['wallets', 'wallets_reserved_non_negative'],

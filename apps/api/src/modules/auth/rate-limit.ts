@@ -24,6 +24,35 @@ export const RATE_LIMITS = {
   refresh: { limit: 60, windowSeconds: 900 },
   telegramStart: { limit: 20, windowSeconds: 3600 },
   telegramLink: { limit: 10, windowSeconds: 3600 },
+
+  // Bidding, in four dimensions. A bid costs money and the engine takes three
+  // row locks, so the limits protect the user's wallet from a runaway client
+  // and the auction row from a stampede — not just the API from load.
+  //
+  // Requests, not amounts: one request may legitimately carry a batch of 100.
+  // The per-auction bid ceiling is the auction's own `max_bids_per_user`,
+  // enforced transactionally against the participant row, and these windows
+  // never stand in for it.
+  /** One user's submissions across every auction. */
+  bidSubmit: { limit: 60, windowSeconds: 60 },
+  /**
+   * One user on one auction. Deliberately tighter: a bidder revising their
+   * ladder makes a handful of requests, and a hundred in a minute against a
+   * single auction is a script, not a person.
+   */
+  bidSubmitPerAuction: { limit: 20, windowSeconds: 60 },
+  /**
+   * One address. Looser than the per-user limit because a household, an
+   * office or a mobile carrier NAT legitimately shares one, so this is a
+   * ceiling on abuse rather than a per-person rule.
+   */
+  bidSubmitPerIp: { limit: 120, windowSeconds: 60 },
+  /**
+   * One auction, from everyone. The last seconds of a popular auction are the
+   * worst case in the platform: every bidder queues on the same auction row.
+   * This bounds the queue instead of letting it grow until requests time out.
+   */
+  bidSubmitPerAuctionGlobal: { limit: 600, windowSeconds: 60 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

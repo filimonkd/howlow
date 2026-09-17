@@ -131,11 +131,22 @@ describe('the summary line', () => {
   });
 });
 
-describe('the bidding placeholder', () => {
-  it('explains itself rather than doing nothing quietly', () => {
-    expect(renderBiddingNotice(DETAIL)).toMatch(/coming soon/i);
+describe('refusing to bid', () => {
+  /**
+   * Phase 4 showed a "bidding coming soon" notice here; Phase 5 implements
+   * bidding, so this now only explains why an auction will not take one.
+   */
+  it('says why an auction is not taking bids', () => {
     expect(renderBiddingNotice({ ...DETAIL, status: 'scheduled' })).toMatch(/not opened yet/i);
     expect(renderBiddingNotice({ ...DETAIL, status: 'completed' })).toMatch(/no longer taking bids/i);
+    expect(renderBiddingNotice({ ...DETAIL, status: 'cancelled' })).toMatch(/no longer taking bids/i);
+  });
+
+  it('never hints at anything about other bidders', () => {
+    for (const status of ['scheduled', 'completed', 'cancelled', 'suspended'] as const) {
+      const notice = renderBiddingNotice({ ...DETAIL, status });
+      expect(notice).not.toMatch(/unique|taken|someone else/i);
+    }
   });
 });
 

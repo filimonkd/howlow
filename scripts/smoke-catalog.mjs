@@ -544,18 +544,21 @@ async function main() {
   );
   console.log('smoke-catalog: Telegram detail renders the same auction the website shows');
 
-  // The bidding placeholder explains itself rather than doing nothing.
+  // Pressing the bid button now starts the real Phase 5 flow. This reader's
+  // Telegram account is not linked to HOWLOW, so the honest answer is an
+  // invitation to connect it — not a bid, and not silence.
   check(
     (await deliverUpdate(callbackQuery(`ab:${auctionId}`))) === 200,
-    'the webhook rejected the bid placeholder',
+    'the webhook rejected the bid button',
   );
   const answered = lastSent('answerCallbackQuery');
-  check(answered !== undefined, 'the bid placeholder answered nothing');
+  check(answered !== undefined, 'the bid button answered nothing');
+  const bidReply = String(lastSent('sendMessage')?.text ?? '');
   check(
-    /coming soon|not opened yet|no longer taking bids/i.test(String(answered.text ?? '')),
-    `the bid placeholder said: ${JSON.stringify(answered.text)}`,
+    /not connected to HOWLOW/i.test(bidReply),
+    `the bid button said: ${JSON.stringify(bidReply.slice(0, 120))}`,
   );
-  console.log('smoke-catalog: Telegram has no bidding, and says so');
+  console.log('smoke-catalog: the Telegram bid button invites an unlinked reader to connect');
 
   // A draft must stay invisible to Telegram too, even when its id is supplied
   // directly in a callback payload. Its own product, so the auction is not

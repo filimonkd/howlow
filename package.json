@@ -54,7 +54,8 @@
     "verify:auth": "node scripts/smoke-auth.mjs",
     "verify:wallet": "node scripts/smoke-wallet.mjs",
     "verify:sigv4": "node scripts/verify-sigv4.mjs",
-    "verify:catalog": "node scripts/smoke-catalog.mjs"
+    "verify:catalog": "node scripts/smoke-catalog.mjs",
+    "verify:bidding": "node scripts/smoke-bidding.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

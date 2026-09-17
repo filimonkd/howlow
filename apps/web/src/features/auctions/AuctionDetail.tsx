@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AuctionDetailDto } from '@howlow/shared';
 import * as api from '../../lib/catalog-api.js';
 import { Button, Notice, Panel } from '../../components/AuthForms.js';
+import { BidPanel } from '../bids/BidPanel.js';
 import { formatRemaining, money, StatusBadge } from './AuctionCard.js';
 
 /**
@@ -12,8 +13,8 @@ import { formatRemaining, money, StatusBadge } from './AuctionCard.js';
  * which amounts are still unique. The API does not return those, and it must
  * not, because any of them would let a bidder work out the lowest unique bid.
  *
- * There is no bidding UI: Phase 5 implements bid submission. The action here
- * says what it is rather than being a button that does nothing.
+ * The bidding controls live in `BidPanel`, which shows the caller their own
+ * position and nothing about anyone else's.
  */
 type State =
   | { readonly kind: 'loading' }
@@ -54,24 +55,45 @@ function useCountdown(initialSeconds: number | undefined): number | undefined {
 export function AuctionDetail({
   reference,
   onBack,
+  viewerId,
+  sessionSettled = true,
 }: {
   readonly reference: string;
   readonly onBack: () => void;
+  /** The signed-in viewer, once the session has been restored. */
+  readonly viewerId?: string | undefined;
+  /** False while the stored session is still being rotated. */
+  readonly sessionSettled?: boolean;
 }): React.JSX.Element {
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [imageIndex, setImageIndex] = useState(0);
 
-  const load = useCallback(async (): Promise<void> => {
-    setState({ kind: 'loading' });
-    try {
-      setState({ kind: 'ready', auction: await api.fetchAuction(reference) });
-    } catch (cause) {
-      setState({
-        kind: 'error',
-        message: cause instanceof Error ? cause.message : 'This auction could not be loaded.',
-      });
-    }
-  }, [reference]);
+  /**
+   * Fetch the auction.
+   *
+   * `soft` keeps whatever is already on screen while the new copy is fetched.
+   * That matters after a bid: dropping to the loading state unmounts the bid
+   * panel, and the panel is what was showing the "your bids were submitted"
+   * confirmation — so the bidder pressed Confirm and saw nothing at all. A
+   * browser drive of the real UI is what caught it.
+   */
+  const load = useCallback(
+    async (options: { soft?: boolean } = {}): Promise<void> => {
+      if (options.soft !== true) setState({ kind: 'loading' });
+      try {
+        setState({ kind: 'ready', auction: await api.fetchAuction(reference) });
+      } catch (cause) {
+        // A failed soft refresh leaves the page as it was rather than
+        // replacing a working view with an error.
+        if (options.soft === true) return;
+        setState({
+          kind: 'error',
+          message: cause instanceof Error ? cause.message : 'This auction could not be loaded.',
+        });
+      }
+    },
+    [reference],
+  );
 
   useEffect(() => {
     void load();
@@ -231,23 +253,18 @@ export function AuctionDetail({
         </ol>
       </Panel>
 
-      <Panel title="Bidding">
-        {/*
-          Phase 5 implements bid submission. Until then this states plainly that
-          it is not available, rather than offering a control that silently
-          fails.
-        */}
-        <p className="mb-3 text-sm opacity-70">
-          {auction.status === 'scheduled'
-            ? 'This auction has not opened yet. Bidding opens at the start time above.'
-            : live
-              ? 'Bidding is not available yet — it arrives in the next release.'
-              : 'This auction is no longer taking bids.'}
-        </p>
-        <Button disabled>
-          {auction.status === 'scheduled' ? 'Bid when the auction is live' : 'Bidding coming soon'}
-        </Button>
-      </Panel>
+      <BidPanel
+        auction={auction}
+        viewerId={viewerId}
+        sessionSettled={sessionSettled}
+        onPlaced={() => {
+          // Reload the auction so its public figures — the countdown, and the
+          // aggregate counts when they are shown — come from the server rather
+          // than being guessed at locally. Soft, so the panel keeps its
+          // confirmation instead of being remounted out from under the bidder.
+          void load({ soft: true });
+        }}
+      />
     </div>
   );
 }

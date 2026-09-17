@@ -86,6 +86,25 @@ const AUCTION_INTERNALS_PATTERN = {
     'Only modules/auctions may touch auction SQL. Call the lifecycle service (submitForApproval, approve, reject, open, close, suspend, resume, cancel) instead — a status set directly bypasses the transition table.',
 };
 
+/**
+ * Bid SQL, likewise — and this is the one that decides whether people's money
+ * is safe. `bids` and `auction_participants` may only be written by the single
+ * engine in `modules/bidding`, because a bid inserted without its fee, its
+ * participant counter and its auction counter is a corrupt auction rather than
+ * a cheap one. Two code paths that could insert a bid would eventually
+ * disagree, and what they would disagree about is who won.
+ */
+const BIDDING_INTERNALS_PATTERN = {
+  group: [
+    '**/modules/bidding/bidRepository',
+    '**/modules/bidding/bidRepository.js',
+    '**/bidding/bidRepository',
+    '**/bidding/bidRepository.js',
+  ],
+  message:
+    'Only modules/bidding may touch bid SQL. Call bidService.submitBids() instead — it is the only bidding engine, and it carries the fee, the counters and the audit row in the same transaction.',
+};
+
 const DB_IMPORT_PATTERNS = [
   {
     group: ['**/db', '**/db/**', '@howlow/api/db'],
@@ -209,6 +228,7 @@ export default tseslint.config(
             WALLET_INTERNALS_PATTERN,
             CATALOG_INTERNALS_PATTERN,
             AUCTION_INTERNALS_PATTERN,
+            BIDDING_INTERNALS_PATTERN,
           ],
         },
       ],
@@ -223,7 +243,12 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         {
-          patterns: [TRANSPORT_IMPORT_PATTERN, CATALOG_INTERNALS_PATTERN, AUCTION_INTERNALS_PATTERN],
+          patterns: [
+            TRANSPORT_IMPORT_PATTERN,
+            CATALOG_INTERNALS_PATTERN,
+            AUCTION_INTERNALS_PATTERN,
+            BIDDING_INTERNALS_PATTERN,
+          ],
         },
       ],
     },
@@ -234,7 +259,12 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         {
-          patterns: [TRANSPORT_IMPORT_PATTERN, WALLET_INTERNALS_PATTERN, AUCTION_INTERNALS_PATTERN],
+          patterns: [
+            TRANSPORT_IMPORT_PATTERN,
+            WALLET_INTERNALS_PATTERN,
+            AUCTION_INTERNALS_PATTERN,
+            BIDDING_INTERNALS_PATTERN,
+          ],
         },
       ],
     },
@@ -245,7 +275,29 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         {
-          patterns: [TRANSPORT_IMPORT_PATTERN, WALLET_INTERNALS_PATTERN, CATALOG_INTERNALS_PATTERN],
+          patterns: [
+            TRANSPORT_IMPORT_PATTERN,
+            WALLET_INTERNALS_PATTERN,
+            CATALOG_INTERNALS_PATTERN,
+            BIDDING_INTERNALS_PATTERN,
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['apps/api/src/modules/bidding/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            TRANSPORT_IMPORT_PATTERN,
+            WALLET_INTERNALS_PATTERN,
+            CATALOG_INTERNALS_PATTERN,
+            AUCTION_INTERNALS_PATTERN,
+          ],
         },
       ],
     },
@@ -258,7 +310,12 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         {
-          patterns: [WALLET_INTERNALS_PATTERN, CATALOG_INTERNALS_PATTERN, AUCTION_INTERNALS_PATTERN],
+          patterns: [
+            WALLET_INTERNALS_PATTERN,
+            CATALOG_INTERNALS_PATTERN,
+            AUCTION_INTERNALS_PATTERN,
+            BIDDING_INTERNALS_PATTERN,
+          ],
         },
       ],
     },
