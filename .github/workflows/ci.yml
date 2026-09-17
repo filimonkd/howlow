@@ -142,6 +142,22 @@ jobs:
         env:
           TELEGRAM_BOT_USERNAME: howlow_ci_bot
 
+      # LUB_V1 and closing through the whole machine: a real API process, a
+      # real worker process, bids placed over HTTP, and three auctions decided
+      # by the worker's own sweeper on its own schedule. Nothing in it calls
+      # the calculator or the closing service — a winner algorithm that is
+      # right while the worker never runs it is worth nothing. It also waits
+      # for a second sweep and re-counts, because two results, two orders or
+      # two refunds is the failure this phase exists to prevent.
+      #
+      # Longer than the other verifications because it waits for two real
+      # thirty-second sweeps rather than nudging the queue.
+      - name: Verify LUB_V1 and auction closing end to end
+        run: npm run verify:results
+        timeout-minutes: 6
+        env:
+          TELEGRAM_BOT_USERNAME: howlow_ci_bot
+
       # The SigV4 presigner against botocore, AWS's own implementation. Skips
       # cleanly when botocore is absent.
       - name: Verify image presigning against botocore

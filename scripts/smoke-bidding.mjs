@@ -842,14 +842,22 @@ async function main() {
   }
   console.log('smoke-bidding: audit rows record the submission without the amounts');
 
-  // --- Phase 6 stays untouched -------------------------------------------
-  const { rows: phase6 } = await db.query(
-    `SELECT (SELECT count(*) FROM auction_results) AS results,
-            (SELECT count(*) FROM orders) AS orders`,
+  // --- bidding decides nothing --------------------------------------------
+  //
+  // Scoped to this run's auctions rather than counted platform-wide: results
+  // and orders are legitimate rows now that closing exists, and a global count
+  // would make this assertion fail on any database where `verify:results` has
+  // run. What must hold is that *placing bids* never produces either.
+  const { rows: decided } = await db.query(
+    `SELECT (SELECT count(*) FROM auction_results
+              WHERE auction_id IN (SELECT id FROM auctions WHERE slug LIKE $1)) AS results,
+            (SELECT count(*) FROM orders
+              WHERE auction_id IN (SELECT id FROM auctions WHERE slug LIKE $1)) AS orders`,
+    [`bid-auc-${RUN_TAG}%`],
   );
-  check(phase6[0].results === '0', `Phase 5 wrote ${phase6[0].results} auction results`);
-  check(phase6[0].orders === '0', `Phase 5 wrote ${phase6[0].orders} orders`);
-  console.log('smoke-bidding: no auction results and no orders — the Phase 6 boundary holds');
+  check(decided[0].results === '0', `bidding wrote ${decided[0].results} auction results`);
+  check(decided[0].orders === '0', `bidding wrote ${decided[0].orders} orders`);
+  console.log('smoke-bidding: placing bids decided nothing — no results and no orders');
 
   await cleanupRun();
 
