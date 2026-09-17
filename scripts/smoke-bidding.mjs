@@ -851,8 +851,47 @@ async function main() {
   check(phase6[0].orders === '0', `Phase 5 wrote ${phase6[0].orders} orders`);
   console.log('smoke-bidding: no auction results and no orders — the Phase 6 boundary holds');
 
+  await cleanupRun();
+
   console.log('smoke-bidding: OK');
   stop();
+}
+
+/**
+ * Remove the auctions and products this run created.
+ *
+ * Not politeness: this script builds seven auctions per run against the shared
+ * development database, and a live auction it leaves behind is a live auction
+ * on every listing every other script and every developer then sees. It was
+ * caught by `verify:catalog` failing on a database several bidding runs old —
+ * its Telegram assertion looks at the first page of the listing, and this
+ * script's litter had filled it.
+ *
+ * Deleted in foreign-key order and scoped to this run's slug prefix. Registered
+ * bidder accounts are left alone: `audit_logs.actor_user_id` is
+ * `ON DELETE SET NULL` but `sessions` is `RESTRICT`, so removing them would
+ * mean unpicking Phase 2's tables for no gain — an unused account changes
+ * nothing anyone sees.
+ */
+async function cleanupRun() {
+  const auctions = `SELECT id FROM auctions WHERE slug LIKE 'bid-auc-${RUN_TAG}%'`;
+  const products = `SELECT id FROM products WHERE slug LIKE 'bid-prod-${RUN_TAG}%'`;
+  try {
+    await db.query('BEGIN');
+    await db.query(`DELETE FROM bids WHERE auction_id IN (${auctions})`);
+    await db.query(`DELETE FROM auction_participants WHERE auction_id IN (${auctions})`);
+    await db.query(`DELETE FROM inventory_reservations WHERE product_id IN (${products})`);
+    await db.query(`DELETE FROM auctions WHERE id IN (${auctions})`);
+    await db.query(`DELETE FROM products WHERE id IN (${products})`);
+    await db.query(`DELETE FROM categories WHERE slug LIKE 'bid-cat-${RUN_TAG}%'`);
+    await db.query('COMMIT');
+  } catch (error) {
+    await db.query('ROLLBACK').catch(() => undefined);
+    // A failed cleanup must not fail a run whose assertions all passed; it
+    // leaves rows behind, which is the state this function exists to improve
+    // rather than a correctness problem.
+    console.warn(`smoke-bidding: could not clean up this run's fixtures: ${String(error)}`);
+  }
 }
 
 main().catch((error) => {

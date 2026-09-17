@@ -682,9 +682,45 @@ async function main() {
   check(crossProduct.status === 403, `cross-seller product read returned ${crossProduct.status}`);
   console.log('smoke-catalog: one seller cannot reach another’s listing');
 
+  await cleanupRun();
+
   console.log('smoke-catalog: OK');
   stop();
   process.exit(0);
+}
+
+/**
+ * Remove the auctions and products this run created.
+ *
+ * The auctions this script publishes are live and scheduled, so every run adds
+ * to the public listing the *next* run reads. The Telegram assertion above
+ * looks at the first page, the bot pages five at a time — so the seventh run on
+ * one database fails on litter from the first six, with nothing wrong with the
+ * code. Found while running the full verify sequence repeatedly, which is
+ * exactly when it bites a developer.
+ *
+ * Deleted in foreign-key order and scoped to this run's slug prefix. Registered
+ * accounts are left alone: `sessions.actor` and friends are `RESTRICT`, so
+ * removing them would mean unpicking Phase 2's tables, and an unused account
+ * changes nothing anyone sees.
+ */
+async function cleanupRun() {
+  const auctions = `SELECT id FROM auctions WHERE slug LIKE '%-${RUN_TAG}'`;
+  const products = `SELECT id FROM products WHERE slug LIKE '%-${RUN_TAG}'`;
+  try {
+    await db.query('BEGIN');
+    await db.query(`DELETE FROM bids WHERE auction_id IN (${auctions})`);
+    await db.query(`DELETE FROM auction_participants WHERE auction_id IN (${auctions})`);
+    await db.query(`DELETE FROM inventory_reservations WHERE product_id IN (${products})`);
+    await db.query(`DELETE FROM auctions WHERE id IN (${auctions})`);
+    await db.query(`DELETE FROM product_images WHERE product_id IN (${products})`);
+    await db.query(`DELETE FROM products WHERE id IN (${products})`);
+    await db.query('COMMIT');
+  } catch (error) {
+    await db.query('ROLLBACK').catch(() => undefined);
+    // A failed cleanup must not fail a run whose assertions all passed.
+    console.warn(`smoke-catalog: could not clean up this run's fixtures: ${String(error)}`);
+  }
 }
 
 main().catch((error) => fail(error instanceof Error ? (error.stack ?? error.message) : String(error)));
