@@ -1,5 +1,5 @@
 import type { AuctionSummaryDto } from '@howlow/shared';
-import type { InlineKeyboardMarkup } from 'grammy/types';
+import type { InlineKeyboardButton, InlineKeyboardMarkup } from 'grammy/types';
 
 /**
  * Inline keyboards for auction browsing.
@@ -34,6 +34,8 @@ export const CALLBACK = {
   bidConfirm: 'bc',
   /** Discard the draft: `bx`. */
   bidCancel: 'bx',
+  /** Show the result of a decided auction: `ar:<uuid>`. */
+  auctionResult: 'ar',
 } as const;
 
 /** Telegram's hard limit on callback data. */
@@ -45,6 +47,10 @@ export function auctionCallback(auctionId: string): string {
 
 export function bidCallback(auctionId: string): string {
   return `${CALLBACK.auctionBid}:${auctionId}`;
+}
+
+export function resultCallback(auctionId: string): string {
+  return `${CALLBACK.auctionResult}:${auctionId}`;
 }
 
 /**
@@ -88,17 +94,38 @@ export function auctionDetailKeyboard(input: {
   auctionId: string;
   webUrl: string;
   acceptsBids: boolean;
+  /** True once the auction has been decided, so a result exists to read. */
+  hasResult?: boolean;
 }): InlineKeyboardMarkup {
+  // Typed explicitly: inferred from its first row this would be a list of
+  // URL buttons, and the callback rows below would not fit it.
+  const rows: InlineKeyboardButton[][] = [[{ text: 'Open on the website', url: input.webUrl }]];
+
+  // A decided auction offers its result instead of a dead bid button. The two
+  // are mutually exclusive by the lifecycle itself — an auction taking bids
+  // has no result, and one with a result takes none — so this is a choice
+  // about what the reader wants, not a pair of states that could overlap.
+  if (input.hasResult === true) {
+    rows.push([{ text: '🏆 See the result', callback_data: resultCallback(input.auctionId) }]);
+  } else {
+    rows.push([
+      {
+        text: input.acceptsBids ? '💸 Place a bid' : 'Not taking bids',
+        callback_data: bidCallback(input.auctionId),
+      },
+    ]);
+  }
+
+  rows.push([{ text: '◂ Back to auctions', callback_data: `${CALLBACK.auctionList}:0` }]);
+  return { inline_keyboard: rows };
+}
+
+/** After a result: back to the auction, or on to the rest of the list. */
+export function resultKeyboard(auctionId: string): InlineKeyboardMarkup {
   return {
     inline_keyboard: [
-      [{ text: 'Open on the website', url: input.webUrl }],
-      [
-        {
-          text: input.acceptsBids ? '💸 Place a bid' : 'Not taking bids',
-          callback_data: bidCallback(input.auctionId),
-        },
-      ],
-      [{ text: '◂ Back to auctions', callback_data: `${CALLBACK.auctionList}:0` }],
+      [{ text: 'Back to the auction', callback_data: auctionCallback(auctionId) }],
+      [{ text: '◂ All auctions', callback_data: `${CALLBACK.auctionList}:0` }],
     ],
   };
 }
