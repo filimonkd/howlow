@@ -325,6 +325,44 @@ Phase 4/5 boundary.
 
 ---
 
+## Bidding
+
+One engine, two channels. `bidService.submitBids()` is the only way to place a
+bid on HOWLOW: the HTTP controller and the Telegram handler both call it, and
+neither writes SQL, charges a wallet or decides whether an auction is open.
+
+```
+POST /api/v1/auctions/:publicId/bids
+Idempotency-Key: <uuid>
+
+{ "amountsMinor": ["100", "300", "700"] }
+```
+
+A single bid is a batch of one, and a batch is all or nothing. The duplicate
+rule is a PostgreSQL partial unique index rather than a prior read; the bid
+limit is a locked participant row rather than a `COUNT(*)`; the deadline is
+`clock_timestamp()` read after the auction lock, so no client clock and no
+queued transaction can bid past it. The fee is charged by the Phase 3 wallet
+service in the same transaction, and a zero fee writes no ledger entry.
+
+The lock order is **auction → product → wallet → participant**, which is what
+keeps a bid from deadlocking against inventory reservation.
+
+**Nothing anywhere reveals whether an amount is unique.** The only pre-close
+status is `submitted`; Phase 6 decides `won` and `not_winning`.
+
+```bash
+npm run test:db          # the engine and seven concurrency races
+npm run verify:bidding   # both channels against the built application
+```
+
+[docs/bidding.md](docs/bidding.md) documents the submission contract, batch
+semantics, idempotency, the lock ordering, the concurrency strategy, rate
+limits, both channel flows, the error codes, the live-uniqueness policy and the
+Phase 5/6 boundary.
+
+---
+
 ## Branch strategy
 
 `main` is protected and is never committed to directly.

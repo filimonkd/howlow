@@ -73,21 +73,71 @@ describe('duplicate-bid rule', () => {
     expect(rebid.rowCount).toBe(1);
   });
 
-  it('rejects a replayed idempotency key rather than creating a second bid', async () => {
+  /**
+   * One key may carry a whole batch, but never the same amount twice.
+   *
+   * Phase 1 wrote this index without the amount, which allowed exactly one bid
+   * row per key — right for one bid per request, and wrong for the engine that
+   * was built: a batch of seven amounts is one request carrying one
+   * `Idempotency-Key`, so the second row of every batch would have failed.
+   * Migration 0013 replaced it with the same guarantee at the granularity a
+   * batch has.
+   */
+  it('lets one idempotency key carry several amounts', async () => {
+    const batch = await client.query(
+      `INSERT INTO bids (auction_id, user_id, amount_minor, fee_minor, channel, idempotency_key)
+       SELECT $1, $2, amount, 500, 'web', 'idem-key-batch'
+         FROM unnest(ARRAY[3100, 3200, 3300]::bigint[]) AS amount
+       RETURNING id`,
+      [fx.auctionId, fx.userId],
+    );
+    expect(batch.rowCount).toBe(3);
+  });
+
+  it('rejects one idempotency key producing the same amount twice', async () => {
     await client.query(
       `INSERT INTO bids (auction_id, user_id, amount_minor, fee_minor, channel, idempotency_key)
-       VALUES ($1, $2, 3100, 500, 'web', 'idem-key-1')`,
+       VALUES ($1, $2, 3400, 500, 'web', 'idem-key-1')`,
       [fx.auctionId, fx.userId],
     );
 
     const failure = await expectRejected(client, () =>
       client.query(
         `INSERT INTO bids (auction_id, user_id, amount_minor, fee_minor, channel, idempotency_key)
-         VALUES ($1, $2, 3200, 500, 'web', 'idem-key-1')`,
+         VALUES ($1, $2, 3400, 500, 'web', 'idem-key-1')`,
         [fx.auctionId, fx.userId],
       ),
     );
-    expect(failure.constraint).toBe('bids_idempotency_key_unique');
+    // Either index may fire first: the duplicate rule covers valid bids and
+    // this one covers every status. PostgreSQL does not promise which.
+    expect(['bids_idempotency_amount_unique', 'bids_valid_amount_unique_key']).toContain(failure.constraint);
+  });
+
+  /**
+   * The amount-scoped index covers voided bids too, which the duplicate rule
+   * deliberately does not — so a retried request cannot resurrect an amount
+   * that was voided in between.
+   */
+  it('rejects a replayed key even after the bid it produced was voided', async () => {
+    await client.query(
+      `INSERT INTO bids (auction_id, user_id, amount_minor, fee_minor, channel, idempotency_key)
+       VALUES ($1, $2, 3500, 500, 'web', 'idem-key-void')`,
+      [fx.auctionId, fx.userId],
+    );
+    await client.query(
+      `UPDATE bids SET status = 'void', voided_at = now(), void_reason = 'test'
+       WHERE auction_id = $1 AND user_id = $2 AND amount_minor = 3500`,
+      [fx.auctionId, fx.userId],
+    );
+
+    const failure = await expectRejected(client, () =>
+      client.query(
+        `INSERT INTO bids (auction_id, user_id, amount_minor, fee_minor, channel, idempotency_key)
+         VALUES ($1, $2, 3500, 500, 'web', 'idem-key-void')`,
+        [fx.auctionId, fx.userId],
+      ),
+    );
+    expect(failure.constraint).toBe('bids_idempotency_amount_unique');
   });
 
   it('rejects a non-positive bid amount', async () => {

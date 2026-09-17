@@ -31,6 +31,7 @@ parser so those columns arrive as strings and can only become `bigint`.
 | Auction    | `auctions`, `auction_participants`, `bids`, `auction_results`                      |
 | Wallet     | `wallets`, `wallet_entries` — see [wallet.md](wallet.md)                           |
 | Inventory  | `inventory_reservations` — see [catalog.md](catalog.md)                            |
+| Bidding    | `bids`, `auction_participants` — see [bidding.md](bidding.md)                      |
 | Commerce   | `orders`, `payments`, `payment_events`, `refunds`, `shipments`                     |
 | Platform   | `idempotency_keys`, `notifications`, `telegram_outbox`, `notification_preferences` |
 | Governance | `audit_logs`, `fraud_flags`                                                        |

@@ -479,6 +479,11 @@ describe('TEST 6 — last-second bids', () => {
       auctionId: auction.auctionId,
       amountsMinor: [100],
     });
+    // Marked handled immediately. The promise is deliberately left in flight
+    // for the ~900ms below, and Node reports a rejection with no handler
+    // attached as unhandled even though `settle` reads it afterwards —
+    // attaching a catch does not consume it for that later read.
+    attempt.catch(() => undefined);
 
     // Let the deadline pass while the bid waits, then release the lock.
     await new Promise((resolve) => setTimeout(resolve, 900));
