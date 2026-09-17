@@ -131,6 +131,17 @@ jobs:
         env:
           TELEGRAM_BOT_USERNAME: howlow_ci_bot
 
+      # The bidding engine over both transports: the real POST endpoint and the
+      # real Telegram webhook, ending in an assertion that a bid placed from
+      # Telegram appears in the website's own bid list for the same account —
+      # one engine, one limit. This is the check that would catch a channel
+      # reaching its own way to a bid, which is the failure the phase is built
+      # to make impossible.
+      - name: Verify the bidding channels end to end
+        run: npm run verify:bidding
+        env:
+          TELEGRAM_BOT_USERNAME: howlow_ci_bot
+
       # The SigV4 presigner against botocore, AWS's own implementation. Skips
       # cleanly when botocore is absent.
       - name: Verify image presigning against botocore
