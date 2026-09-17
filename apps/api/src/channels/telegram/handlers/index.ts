@@ -4,6 +4,7 @@ import * as auth from '../../../modules/auth/index.js';
 import * as wallet from '../../../modules/wallet/index.js';
 import { getLogger } from '../../../shared/index.js';
 import { registerAuctionHandlers } from './auctions/index.js';
+import { registerBiddingHandlers } from './bidding/index.js';
 
 /**
  * Telegram command handlers.
@@ -46,6 +47,10 @@ export function registerHandlers(bot: Bot): void {
   // Auction browsing lives in its own module: it is the largest surface the
   // bot has, and it shares nothing with identity or wallet handling.
   registerAuctionHandlers(bot);
+  // Bidding is registered after browsing so the `ab:` callback reaches the
+  // real flow. It also claims plain text messages, which is why it comes
+  // after the commands above: a command is never a bid amount.
+  registerBiddingHandlers(bot);
 
   bot.command('start', async (ctx) => {
     const identity = telegramIdentity(ctx);
@@ -180,7 +185,7 @@ export function registerHandlers(bot: Bot): void {
         '/start — connect or recognise your account\n' +
         '/profile — your HOWLOW account\n' +
         '/wallet — your balance and recent transactions\n' +
-        '/auctions — browse live and upcoming auctions\n' +
+        '/auctions — browse live and upcoming auctions, and place bids\n' +
         '/help — this message',
     );
   });

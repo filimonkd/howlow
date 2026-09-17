@@ -4,7 +4,7 @@ import { loadConfig } from '../../../../config/index.js';
 import * as auctions from '../../../../modules/auctions/index.js';
 import { getLogger } from '../../../../shared/index.js';
 import { auctionDetailKeyboard, auctionListKeyboard, CALLBACK } from '../../keyboards/auctions.js';
-import { renderBiddingNotice, renderDetail, renderSummary } from '../../render/auctions.js';
+import { renderDetail, renderSummary } from '../../render/auctions.js';
 
 /**
  * Telegram auction browsing.
@@ -14,9 +14,9 @@ import { renderBiddingNotice, renderDetail, renderSummary } from '../../render/a
  * own. `getPublicAuction` is what refuses a draft, so the bot cannot show one
  * even if a callback payload names it.
  *
- * Phase 4 is browsing only. There is no `/bid`, no confirmation flow and no
- * wallet deduction; the bidding button explains itself rather than doing
- * nothing quietly.
+ * Browsing only. The bid button on the detail keyboard is handled by
+ * `handlers/bidding`, which sequences the confirmation flow and calls the
+ * one bidding engine — there is no second path from a chat to a bid.
  */
 const PAGE_SIZE = 5;
 
@@ -122,28 +122,6 @@ export function registerAuctionHandlers(bot: Bot): void {
       await sendAuctionList(ctx, cursor === '0' || cursor === undefined ? undefined : cursor);
     } catch (error) {
       await replyWithError(ctx, error);
-    }
-  });
-
-  /**
-   * The bidding placeholder.
-   *
-   * Phase 5 replaces this with the real flow. Until then it says so, because a
-   * button that appeared to work and did nothing would be worse.
-   */
-  bot.callbackQuery(new RegExp(`^${CALLBACK.auctionBid}:(.+)$`), async (ctx) => {
-    const auctionId = ctx.match?.[1];
-    if (auctionId === undefined) {
-      await ctx.answerCallbackQuery({ text: 'That auction is no longer available.' });
-      return;
-    }
-    try {
-      const auction = await auctions.getPublicAuction(auctionId);
-      const detail = auctions.toDetailDto(auction, []);
-      await ctx.answerCallbackQuery({ text: renderBiddingNotice(detail) });
-    } catch (error) {
-      await ctx.answerCallbackQuery({ text: 'That auction is no longer available.' });
-      getLogger().debug({ err: error, auctionId }, 'Telegram bid placeholder could not load');
     }
   });
 }
