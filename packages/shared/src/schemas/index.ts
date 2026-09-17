@@ -5,5 +5,6 @@ export * from './bid.js';
 export * from './catalog.js';
 export * from './common.js';
 export * from './health.js';
+export * from './order.js';
 export * from './result.js';
 export * from './wallet.js';

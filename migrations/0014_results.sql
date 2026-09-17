@@ -18,6 +18,9 @@
 --   2. **The winner's payment deadline.** `auctions.winner_payment_hours` says
 --      how long a winner has; the order has to say *until when*, because the
 --      answer must not move if the auction's terms are ever re-read.
+--   3. **A source of order numbers.** `orders.order_number` is NOT NULL and
+--      unique, and Phase 1 left the generating of it to whatever first needed
+--      to create an order. That is now.
 
 -- --------------------------------------------------------------------------
 -- The outcome.
@@ -78,6 +81,37 @@ CREATE INDEX orders_payment_due_idx ON orders (payment_due_at)
   WHERE status = 'pending_payment' AND payment_due_at IS NOT NULL;
 
 -- --------------------------------------------------------------------------
+-- Order numbers.
+--
+-- `HL-<year>-<at least six digits>`, e.g. HL-2026-000123: short enough to read
+-- over the phone, unambiguous in a support conversation, and carrying the year
+-- so an old reference is recognisable as one.
+--
+-- A sequence rather than `max(order_number) + 1`, because the latter is a race
+-- that two concurrent orders lose together, and rather than a random token,
+-- because a human has to be able to read one out. The sequence is never reset
+-- per year: the digits stay globally unique on their own, so the year is
+-- decoration rather than part of the key, and a January order cannot collide
+-- with a December one.
+--
+-- Sequences do not roll back, so a transaction that fails after drawing a
+-- number leaves a gap. That is the intended trade: the alternative is a
+-- counter row that every order creation would have to lock, which would
+-- serialise order creation platform-wide to buy gapless numbering nobody
+-- needs. `orders_order_number_key` remains the actual guarantee.
+-- --------------------------------------------------------------------------
+CREATE SEQUENCE orders_order_number_seq AS bigint START WITH 1 NO CYCLE;
+
+CREATE FUNCTION next_order_number() RETURNS text
+LANGUAGE sql VOLATILE AS $$
+  SELECT 'HL-' || to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY') || '-'
+         || lpad(nextval('orders_order_number_seq')::text, 6, '0');
+$$;
+
+COMMENT ON FUNCTION next_order_number() IS
+  'The next human-quotable order reference, HL-<year>-<digits>. Gaps are expected.';
+
+-- --------------------------------------------------------------------------
 -- Result immutability.
 --
 -- `auction_results_append_only` already forbids UPDATE and DELETE on the
@@ -91,6 +125,9 @@ CREATE INDEX orders_payment_due_idx ON orders (payment_due_at)
 -- --------------------------------------------------------------------------
 
 -- Down Migration
+
+DROP FUNCTION IF EXISTS next_order_number();
+DROP SEQUENCE IF EXISTS orders_order_number_seq;
 
 DROP INDEX IF EXISTS orders_payment_due_idx;
 

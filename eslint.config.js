@@ -20,6 +20,10 @@ import prettier from 'eslint-config-prettier';
  *                                       (only the catalog module reserves stock)
  *   anything           ⇏  modules/auctions/auctionRepository
  *                                       (only the lifecycle service changes status)
+ *   anything           ⇏  modules/results/resultsRepository
+ *                                       (one immutable result per auction)
+ *   anything           ⇏  modules/orders/orderRepository
+ *                                       (one order per won auction)
  *
  * Channel adapters may import `modules/*` and `shared/*`, and nothing else
  * that carries business meaning.
@@ -105,6 +109,45 @@ const BIDDING_INTERNALS_PATTERN = {
     'Only modules/bidding may touch bid SQL. Call bidService.submitBids() instead — it is the only bidding engine, and it carries the fee, the counters and the audit row in the same transaction.',
 };
 
+/**
+ * Result SQL, likewise — and this boundary is the strictest of them all,
+ * because `resultsRepository` contains no UPDATE and no DELETE at all.
+ *
+ * An `auction_results` row is the published answer to "who won". It is
+ * inserted once, read forever, and `auction_results_append_only` refuses to
+ * let the database change it. Nothing outside `modules/results` may reach the
+ * table, and nothing inside it offers a way to edit a row — a result that
+ * could be corrected after publication would not be a result, it would be an
+ * opinion.
+ */
+const RESULTS_INTERNALS_PATTERN = {
+  group: [
+    '**/modules/results/resultsRepository',
+    '**/modules/results/resultsRepository.js',
+    '**/results/resultsRepository',
+    '**/results/resultsRepository.js',
+  ],
+  message:
+    'Only modules/results may touch auction_results SQL. Call closeAuction(), getResult() or getMyOutcome() instead — a result is written once by the closing service and is immutable afterwards.',
+};
+
+/**
+ * Order SQL, likewise. A won auction produces exactly one order, and that is
+ * guaranteed by a unique index reached from exactly one code path. Two paths
+ * that could create an order would eventually promise one product unit to two
+ * people.
+ */
+const ORDERS_INTERNALS_PATTERN = {
+  group: [
+    '**/modules/orders/orderRepository',
+    '**/modules/orders/orderRepository.js',
+    '**/orders/orderRepository',
+    '**/orders/orderRepository.js',
+  ],
+  message:
+    'Only modules/orders may touch order SQL. Call createWinnerOrder() or the order reads instead — one order per auction is enforced by a unique index behind that one path.',
+};
+
 const DB_IMPORT_PATTERNS = [
   {
     group: ['**/db', '**/db/**', '@howlow/api/db'],
@@ -175,6 +218,9 @@ export default tseslint.config(
             WALLET_INTERNALS_PATTERN,
             CATALOG_INTERNALS_PATTERN,
             AUCTION_INTERNALS_PATTERN,
+            BIDDING_INTERNALS_PATTERN,
+            RESULTS_INTERNALS_PATTERN,
+            ORDERS_INTERNALS_PATTERN,
             {
               group: ['**/channels/http', '**/channels/http/**', '**/http', '**/http/**'],
               message:
@@ -198,6 +244,9 @@ export default tseslint.config(
             WALLET_INTERNALS_PATTERN,
             CATALOG_INTERNALS_PATTERN,
             AUCTION_INTERNALS_PATTERN,
+            BIDDING_INTERNALS_PATTERN,
+            RESULTS_INTERNALS_PATTERN,
+            ORDERS_INTERNALS_PATTERN,
             {
               group: ['**/channels/telegram', '**/channels/telegram/**', '**/telegram', '**/telegram/**'],
               message:
@@ -229,6 +278,8 @@ export default tseslint.config(
             CATALOG_INTERNALS_PATTERN,
             AUCTION_INTERNALS_PATTERN,
             BIDDING_INTERNALS_PATTERN,
+            RESULTS_INTERNALS_PATTERN,
+            ORDERS_INTERNALS_PATTERN,
           ],
         },
       ],
@@ -248,6 +299,8 @@ export default tseslint.config(
             CATALOG_INTERNALS_PATTERN,
             AUCTION_INTERNALS_PATTERN,
             BIDDING_INTERNALS_PATTERN,
+            RESULTS_INTERNALS_PATTERN,
+            ORDERS_INTERNALS_PATTERN,
           ],
         },
       ],
@@ -264,6 +317,8 @@ export default tseslint.config(
             WALLET_INTERNALS_PATTERN,
             AUCTION_INTERNALS_PATTERN,
             BIDDING_INTERNALS_PATTERN,
+            RESULTS_INTERNALS_PATTERN,
+            ORDERS_INTERNALS_PATTERN,
           ],
         },
       ],
@@ -280,6 +335,8 @@ export default tseslint.config(
             WALLET_INTERNALS_PATTERN,
             CATALOG_INTERNALS_PATTERN,
             BIDDING_INTERNALS_PATTERN,
+            RESULTS_INTERNALS_PATTERN,
+            ORDERS_INTERNALS_PATTERN,
           ],
         },
       ],
@@ -297,6 +354,51 @@ export default tseslint.config(
             WALLET_INTERNALS_PATTERN,
             CATALOG_INTERNALS_PATTERN,
             AUCTION_INTERNALS_PATTERN,
+            RESULTS_INTERNALS_PATTERN,
+            ORDERS_INTERNALS_PATTERN,
+          ],
+        },
+      ],
+    },
+  },
+
+  // The results module owns `auction_results` and drives the closing workflow,
+  // so it keeps every sibling's rule but not its own. It reads `bids`,
+  // `auction_participants`, `wallets` and `wallet_entries` — reads only, never
+  // a write — because a result's statistics, a refund's amount and "has this
+  // refund already been booked" are facts only those tables hold.
+  {
+    files: ['apps/api/src/modules/results/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            TRANSPORT_IMPORT_PATTERN,
+            WALLET_INTERNALS_PATTERN,
+            CATALOG_INTERNALS_PATTERN,
+            AUCTION_INTERNALS_PATTERN,
+            BIDDING_INTERNALS_PATTERN,
+            ORDERS_INTERNALS_PATTERN,
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    files: ['apps/api/src/modules/orders/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            TRANSPORT_IMPORT_PATTERN,
+            WALLET_INTERNALS_PATTERN,
+            CATALOG_INTERNALS_PATTERN,
+            AUCTION_INTERNALS_PATTERN,
+            BIDDING_INTERNALS_PATTERN,
+            RESULTS_INTERNALS_PATTERN,
           ],
         },
       ],
@@ -315,6 +417,8 @@ export default tseslint.config(
             CATALOG_INTERNALS_PATTERN,
             AUCTION_INTERNALS_PATTERN,
             BIDDING_INTERNALS_PATTERN,
+            RESULTS_INTERNALS_PATTERN,
+            ORDERS_INTERNALS_PATTERN,
           ],
         },
       ],

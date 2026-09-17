@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { currencySchema, minorAmountSchema } from './common.js';
+import { orderDtoSchema } from './order.js';
 
 /**
  * Auction results, over the wire.
@@ -43,6 +44,17 @@ export const ALGORITHM_LUB_V1 = 'LUB_V1';
  */
 export const LUB_V1_RULE =
   'The winner is the lowest bid amount placed by exactly one bidder. If every amount was bid by two or more bidders, there is no winner.';
+
+/**
+ * Stable result-error codes, for both channels to map to their own wording.
+ *
+ * Short list by design: closing is a worker operation, and most of what could
+ * go wrong is a state the service treats as "already done" rather than an
+ * error. What remains means the data is not what the algorithm requires.
+ */
+export const RESULT_ERRORS = ['AUCTION_NOT_CLOSED', 'RESULT_NOT_FOUND', 'RESULT_INCONSISTENT'] as const;
+export const resultErrorSchema = z.enum(RESULT_ERRORS);
+export type ResultErrorCode = (typeof RESULT_ERRORS)[number];
 
 /** Statistics frozen with the result, from the bid set it was computed over. */
 export const resultStatisticsSchema = z.object({
@@ -106,15 +118,7 @@ export const myAuctionOutcomeSchema = z.object({
   /** Fees returned to the caller for this auction, if any. */
   refundedMinor: minorAmountSchema,
   /** The order awaiting payment, for the winner only. */
-  order: z
-    .object({
-      id: z.uuid(),
-      orderNumber: z.string(),
-      status: z.string(),
-      totalMinor: minorAmountSchema,
-      paymentDueAt: z.iso.datetime(),
-    })
-    .nullable(),
+  order: orderDtoSchema.nullable(),
 });
 
 export type MyAuctionOutcomeDto = z.infer<typeof myAuctionOutcomeSchema>;
