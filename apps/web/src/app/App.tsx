@@ -94,6 +94,13 @@ export function App(): React.JSX.Element {
       {route.name === 'auction' && (
         <AuctionDetail
           reference={route.reference}
+          // Who is viewing, so the bid panel knows whether it may read the
+          // caller's own bids yet. It starts undefined and becomes an id when
+          // the stored session finishes rotating; the panel refetches on that
+          // change, because a fetch issued before then is answered 401 and a
+          // signed-in bidder would otherwise be shown a signed-out page.
+          viewerId={user?.id}
+          sessionSettled={state.kind !== 'loading'}
           onBack={() => {
             navigate({ name: 'auctions' });
           }}

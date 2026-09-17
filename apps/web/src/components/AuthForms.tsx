@@ -73,17 +73,26 @@ export function Button({
   );
 }
 
+/**
+ * A short message above a form.
+ *
+ * `success` exists because confirming that money moved deserves to look
+ * different from a neutral hint — a bidder who has just been charged should
+ * not have to read carefully to tell whether it worked.
+ */
 export function Notice({
   kind,
   children,
 }: {
-  kind: 'error' | 'info';
+  kind: 'error' | 'info' | 'success';
   children: ReactNode;
 }): React.JSX.Element {
   const styles =
     kind === 'error'
       ? 'border-red-500/40 text-red-700 dark:text-red-300'
-      : 'border-black/10 dark:border-white/15';
+      : kind === 'success'
+        ? 'border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+        : 'border-black/10 dark:border-white/15';
   return <p className={`mb-3 rounded-md border px-3 py-2 text-sm ${styles}`}>{children}</p>;
 }
 
