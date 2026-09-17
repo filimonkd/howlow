@@ -264,13 +264,14 @@ export async function findParticipation(
  */
 export async function sumRefunded(input: { auctionId: string; userId: string }, tx?: Tx): Promise<bigint> {
   const { rows } = await runner(tx).query<{ total: string }>(
-    `SELECT coalesce(sum(e.amount_minor), 0)::text AS total
-       FROM wallet_entries e
-       JOIN wallets w ON w.id = e.wallet_id
-      WHERE w.user_id = $2
-        AND e.type = 'bid_fee_refund'
-        AND e.reference_type = 'auction'
-        AND e.reference_id = $1`,
+    // `user_id` is denormalised onto the entry precisely so a per-user audit of
+    // the ledger needs no join, which is what this is.
+    `SELECT coalesce(sum(amount_minor), 0)::text AS total
+       FROM wallet_entries
+      WHERE user_id = $2
+        AND entry_type = 'bid_fee_refund'
+        AND reference_type = 'auction'
+        AND reference_id = $1`,
     [input.auctionId, input.userId],
   );
   return BigInt(rows[0]?.total ?? '0');
@@ -301,9 +302,8 @@ export async function findAuctionsWithUnpaidRefunds(limit: number, tx?: Tx): Pro
              AND NOT EXISTS (
                SELECT 1
                  FROM wallet_entries e
-                 JOIN wallets w ON w.id = e.wallet_id
-                WHERE w.user_id = p.user_id
-                  AND e.type = 'bid_fee_refund'
+                WHERE e.user_id = p.user_id
+                  AND e.entry_type = 'bid_fee_refund'
                   AND e.reference_type = 'auction'
                   AND e.reference_id = r.auction_id
              )

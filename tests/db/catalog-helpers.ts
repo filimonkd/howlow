@@ -246,19 +246,22 @@ export async function domainRejection(operation: Promise<unknown>): Promise<{
       code?: unknown;
       publicMessage?: unknown;
       message?: unknown;
-      details?: { catalogError?: unknown; auctionError?: unknown; bidError?: unknown };
+      details?: {
+        catalogError?: unknown;
+        auctionError?: unknown;
+        bidError?: unknown;
+        resultError?: unknown;
+      };
     };
-    const domainCode =
-      typeof app.details?.bidError === 'string'
-        ? app.details.bidError
-        : typeof app.details?.auctionError === 'string'
-          ? app.details.auctionError
-          : typeof app.details?.catalogError === 'string'
-            ? app.details.catalogError
-            : 'NOT_A_DOMAIN_ERROR';
+    const domainCode = [
+      app.details?.bidError,
+      app.details?.auctionError,
+      app.details?.catalogError,
+      app.details?.resultError,
+    ].find((code): code is string => typeof code === 'string');
     return {
       code: typeof app.code === 'string' ? app.code : 'UNKNOWN',
-      domainCode,
+      domainCode: domainCode ?? 'NOT_A_DOMAIN_ERROR',
       publicMessage: typeof app.publicMessage === 'string' ? app.publicMessage : String(app.message),
       message: typeof app.message === 'string' ? app.message : String(error),
     };
@@ -312,6 +315,13 @@ export async function cleanup(client: pg.Client): Promise<void> {
     const sellers = `SELECT id FROM sellers WHERE user_id IN (${users})`;
     const products = `SELECT id FROM products WHERE seller_id IN (${sellers})`;
     const auctions = `SELECT id FROM auctions WHERE seller_id IN (${sellers})`;
+    // Results and orders reference the auction (and the winning bid) with ON
+    // DELETE RESTRICT, so they go first or the auction delete below is refused.
+    // `auction_results` is append-only by trigger; the replica role above is
+    // what makes a test teardown able to remove one at all.
+    await client.query(`DELETE FROM orders WHERE auction_id IN (${auctions})`, [domain]);
+    await client.query(`DELETE FROM orders WHERE user_id IN (${users})`, [domain]);
+    await client.query(`DELETE FROM auction_results WHERE auction_id IN (${auctions})`, [domain]);
     // Bids and participants reference both the auction and the bidder, so they
     // go before either. `idempotency_keys` is keyed by the submitting user.
     await client.query(`DELETE FROM bids WHERE auction_id IN (${auctions})`, [domain]);
