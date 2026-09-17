@@ -276,3 +276,92 @@ export async function readAuctionStatus(db: pg.Client, auctionId: string): Promi
   ]);
   return rows[0]?.status ?? 'missing';
 }
+
+// ---------------------------------------------------------------------------
+// Bulk fixtures, for the scale measurements only
+// ---------------------------------------------------------------------------
+
+/**
+ * Insert bids straight into the table, bypassing the bidding engine.
+ *
+ * **Only for measuring the calculator.** Every correctness test in this phase
+ * places bids through `submitBids` so that what is being decided is a set the
+ * real engine accepted; this exists because a hundred thousand of those would
+ * be a hundred thousand transactions with a wallet debit each, and what is
+ * being measured is how LUB_V1 behaves against a large bid set, not how fast
+ * bids can be taken.
+ *
+ * The shape is `bidders × amounts`: bidder *b* bids every amount in the range,
+ * so `(auction, user, amount)` is unique — which the database would insist on
+ * anyway — and the distribution is entirely duplicates except where a lone
+ * `uniqueAmount` is added on top. That makes the *worst* case for the
+ * algorithm: every group has to be counted before the answer is known.
+ *
+ * Users are inserted in one statement under the suite's email domain, so the
+ * shared teardown removes them with everything else.
+ *
+ * ## It deliberately does not `ANALYZE`
+ *
+ * A bulk-loaded table has `reltuples = 0` until something analyses it, and a
+ * planner that believes `bids` is empty is free to pick a plan that re-runs
+ * the uniqueness aggregate once per bid — which is how the quadratic LUB
+ * query documented in `lubCalculator.ts` was found. Analysing here would hide
+ * that class of defect behind good statistics, so the fixture leaves the
+ * table exactly as a bulk load leaves it and the scale test keeps measuring
+ * the worst case.
+ */
+export async function seedBidsDirectly(
+  db: pg.Client,
+  input: {
+    auctionId: string;
+    bidders: number;
+    amounts: number;
+    /** An amount only one bidder places, so the set has a winner. */
+    uniqueAmount?: number | undefined;
+    feeMinor?: bigint | undefined;
+  },
+): Promise<{ userIds: string[]; bidCount: number }> {
+  const tag = `bulk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const { rows: users } = await db.query<{ id: string }>(
+    `INSERT INTO users (email, display_name, status)
+     SELECT format('%s-%s@catalog-suite.test.local', $1::text, g),
+            format('Bulk bidder %s', g),
+            'active'
+       FROM generate_series(1, $2::int) AS g
+     RETURNING id`,
+    [tag, input.bidders],
+  );
+  const userIds = users.map((row) => row.id);
+
+  await db.query(
+    `INSERT INTO bids (auction_id, user_id, amount_minor, fee_minor, status, channel)
+     SELECT $1::uuid,
+            u.id,
+            a.amount,
+            $3::bigint,
+            'valid',
+            CASE WHEN (a.amount % 2) = 0 THEN 'web'::channel ELSE 'telegram'::channel END
+       FROM unnest($2::uuid[]) AS u(id)
+       CROSS JOIN generate_series(1, $4::int) AS a(amount)`,
+    [input.auctionId, userIds, (input.feeMinor ?? 0n).toString(), input.amounts],
+  );
+
+  let bidCount = userIds.length * input.amounts;
+  if (input.uniqueAmount !== undefined) {
+    await db.query(
+      `INSERT INTO bids (auction_id, user_id, amount_minor, fee_minor, status, channel)
+       VALUES ($1, $2, $3, $4, 'valid', 'web')`,
+      [input.auctionId, userIds[0], input.uniqueAmount, (input.feeMinor ?? 0n).toString()],
+    );
+    bidCount += 1;
+  }
+
+  return { userIds, bidCount };
+}
+
+/** Time one operation, in milliseconds. */
+export async function timed<T>(operation: () => Promise<T>): Promise<{ value: T; ms: number }> {
+  const started = process.hrtime.bigint();
+  const value = await operation();
+  return { value, ms: Number(process.hrtime.bigint() - started) / 1_000_000 };
+}

@@ -84,9 +84,39 @@ export interface LubWinner {
  *
  * The join in the outer query cannot match more than one row: step 2 kept only
  * amounts with a single valid bid.
+ *
+ * ## `AS MATERIALIZED` is load-bearing, and was not optional
+ *
+ * Without it this query is **quadratic in the number of bids**, and it was
+ * found by running the scale measurement rather than by reading the SQL.
+ *
+ * PostgreSQL inlines a singly-referenced CTE by default. Inlined here, the
+ * planner is free to put the join's *outer* side on `bids` and the grouping
+ * aggregate on the *inner* side — which means re-running an aggregate over
+ * every bid of the auction, once per bid of the auction. At a hundred thousand
+ * bids that is ten billion row operations: the query does not slow down, it
+ * stops finishing. Measured, with `bids` freshly bulk-loaded and not yet
+ * analysed:
+ *
+ *     plain CTE          > 30,000 ms (cancelled by the statement timeout)
+ *     AS MATERIALIZED            38 ms
+ *
+ * The trigger is the planner believing `bids` is small — `reltuples = 0`,
+ * which is the state of any table that has not been analysed or vacuumed
+ * since it was loaded. With accurate statistics the planner picks the good
+ * shape on its own and both forms run in about 8 ms, which is precisely why
+ * this is dangerous: it works in development and on a warm database, and it
+ * hangs on the first auction after a restore or a fresh deployment. A closing
+ * job is not a place to depend on autovacuum having caught up.
+ *
+ * `MATERIALIZED` removes the choice. The CTE becomes a real node, evaluated
+ * exactly once, and the plan cannot degrade whatever the statistics say. The
+ * 100,000-bid scale test deliberately does **not** analyse the table after
+ * seeding, so it keeps exercising the bad-estimate case and would fail again
+ * if this word were removed.
  */
 const LUB_V1_QUERY = `
-  WITH lowest_unique AS (
+  WITH lowest_unique AS MATERIALIZED (
     SELECT amount_minor
       FROM bids
      WHERE auction_id = $1
@@ -164,6 +194,10 @@ export async function countFrozenBids(auctionId: string, tx?: Tx): Promise<Froze
        count(*)::int                                            AS total_bids,
        count(*) FILTER (WHERE status = 'valid')::int             AS total_valid_bids,
        count(DISTINCT user_id) FILTER (WHERE status = 'valid')::int AS participant_count,
+       -- An uncorrelated scalar subquery: it references nothing from the
+       -- outer query, so PostgreSQL evaluates it once for the whole
+       -- statement. That is what keeps this from repeating the aggregate per
+       -- row the way an inlined CTE can — see the note on LUB_V1_QUERY.
        (SELECT count(*)::int
           FROM (SELECT 1
                   FROM bids v

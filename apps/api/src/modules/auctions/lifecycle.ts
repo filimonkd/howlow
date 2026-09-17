@@ -451,15 +451,36 @@ function isInsufficientInventory(error: unknown): boolean {
  *
  * **The Phase 4 → Phase 6 boundary.** No winner is determined, no order is
  * created, no participation fee is refunded, and nothing moves the auction on
- * to `calculating`. Phase 6 owns `closing → calculating → completed`, and the
- * transition table already declares those moves so the service it adds will
- * enforce the same previous-state rules these do.
+ * to `calculating`. `beginCalculating` and `complete` below own
+ * `closing → calculating → completed`, and the results module drives them.
+ *
+ * Idempotent in both directions: an auction already `closing` is a no-op, and
+ * so is one that has moved *past* closing to `calculating` or `completed`.
+ * Found by racing four worker closes against one auction — the fourth arrived
+ * after the first had finished the whole workflow, and an invalid-transition
+ * error there would have the sweeper logging failures for work that had
+ * succeeded.
  */
 export async function close(input: {
   auctionId: string;
   context?: OperationContext | undefined;
 }): Promise<TransitionResult> {
   const { result, pending } = await withTransaction(async (tx) => {
+    // Past `closing` is *more* than done, and it is reached routinely: the
+    // scheduled job, a retry and the sweeper can all arrive after the auction
+    // has already been decided. `beginTransition` only recognises the target
+    // state itself, so without this a second close would raise an invalid
+    // transition and a worker would log a failure for work that succeeded.
+    //
+    // `cancelled` is deliberately not in this list. A cancelled auction never
+    // closed, and pretending otherwise would let a close report success on an
+    // auction that never took a bid past its deadline.
+    const settled = await repo.lockById(input.auctionId, tx);
+    if (!settled) throw auctionNotFound(input.auctionId);
+    if (settled.status === 'calculating' || settled.status === 'completed') {
+      return { result: { auction: settled, changed: false }, pending: undefined };
+    }
+
     const begun = await beginTransition({ auctionId: input.auctionId, action: 'close' }, tx);
     if ('alreadyDone' in begun) {
       return { result: { auction: begun.alreadyDone, changed: false }, pending: undefined };

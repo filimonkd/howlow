@@ -35,6 +35,15 @@ export { canonicalBidLines, checksumFrozenBids, EMPTY_BID_SET_CHECKSUM } from '.
 
 export { refundIdempotencyKey, refundParticipationFees, sweepOutstandingRefunds } from './refunds.js';
 
+/**
+ * The recovery queries the worker's sweeper drives.
+ *
+ * Both ask PostgreSQL what is outstanding rather than trusting a queue: Redis
+ * is not the source of truth, so a flushed queue or a worker that was down
+ * must not be able to leave an auction undecided or a fee unreturned.
+ */
+export { findAuctionsAwaitingResult } from './resultsRepository.js';
+
 export { auctionNotClosed, resultInconsistent, resultNotFound } from './errors.js';
 
 export type { CloseOutcome, ParticipantFees, RefundOutcome, ResultRecord } from './types.js';

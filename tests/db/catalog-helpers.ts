@@ -285,10 +285,15 @@ export async function settle<T>(
     }
     const details = (
       result.reason as {
-        details?: { catalogError?: unknown; auctionError?: unknown; bidError?: unknown };
+        details?: {
+          catalogError?: unknown;
+          auctionError?: unknown;
+          bidError?: unknown;
+          resultError?: unknown;
+        };
       }
     ).details;
-    const code = details?.bidError ?? details?.auctionError ?? details?.catalogError;
+    const code = details?.bidError ?? details?.auctionError ?? details?.catalogError ?? details?.resultError;
     if (typeof code === 'string') domainErrors.push(code);
     else otherErrors.push(result.reason);
   }

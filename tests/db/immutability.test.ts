@@ -68,9 +68,9 @@ describe('auction_results is immutable', () => {
   it('accepts one result then refuses to change or remove it', async () => {
     await client.query(
       `INSERT INTO auction_results
-         (auction_id, total_bids, total_valid_bids, unique_amount_count,
+         (auction_id, outcome, total_bids, total_valid_bids, unique_amount_count,
           participant_count, frozen_bid_checksum)
-       VALUES ($1, 10, 9, 4, 3, 'sha256:test')`,
+       VALUES ($1, 'no_unique_bid', 10, 9, 0, 3, 'sha256:test')`,
       [fx.auctionId],
     );
 
@@ -89,9 +89,9 @@ describe('auction_results is immutable', () => {
     const failure = await expectRejected(client, () =>
       client.query(
         `INSERT INTO auction_results
-           (auction_id, total_bids, total_valid_bids, unique_amount_count,
+           (auction_id, outcome, total_bids, total_valid_bids, unique_amount_count,
             participant_count, frozen_bid_checksum)
-         VALUES ($1, 1, 1, 1, 1, 'sha256:second')`,
+         VALUES ($1, 'no_unique_bid', 1, 1, 0, 1, 'sha256:second')`,
         [fx.auctionId],
       ),
     );
@@ -112,13 +112,97 @@ describe('auction_results is immutable', () => {
     const failure = await expectRejected(client, () =>
       client.query(
         `INSERT INTO auction_results
-           (auction_id, winner_user_id, total_bids, total_valid_bids,
+           (auction_id, outcome, winner_user_id, total_bids, total_valid_bids,
             unique_amount_count, participant_count, frozen_bid_checksum)
-         VALUES ($1, $2, 5, 5, 2, 2, 'sha256:partial')`,
+         VALUES ($1, 'winner', $2, 5, 5, 2, 2, 'sha256:partial')`,
         [other.rows[0]!.id, fx.userId],
       ),
     );
     expect(failure.constraint).toBe('auction_results_winner_complete');
+  });
+
+  /**
+   * The outcome and the winner columns must agree.
+   *
+   * Phase 1's `winner_complete` says the three winner facts arrive together;
+   * these say which outcomes may carry them. Without them a result could
+   * claim `winner` while naming no winning bid, or claim `no_bids` while
+   * carrying a full statistics row — and every reader downstream would have to
+   * decide which half to believe.
+   */
+  it('refuses an outcome that contradicts the winner columns', async () => {
+    const auctionFor = async (title: string): Promise<string> => {
+      const { rows } = await client.query<{ id: string }>(
+        `INSERT INTO auctions
+           (product_id, seller_id, title, bid_fee_minor, min_bid_minor, max_bid_minor,
+            max_bids_per_user, starts_at, ends_at, status, closed_at)
+         VALUES ($1, $2, $3, 500, 100, 50000, 10,
+                 now() - interval '2 hours', now() - interval '1 hour', 'calculating', now())
+         RETURNING id`,
+        [fx.productId, fx.sellerId, title],
+      );
+      return rows[0]!.id;
+    };
+
+    // `winner` with no winning bid.
+    const emptyWinner = await expectRejected(client, async () =>
+      client.query(
+        `INSERT INTO auction_results
+           (auction_id, outcome, total_bids, total_valid_bids, unique_amount_count,
+            participant_count, frozen_bid_checksum)
+         VALUES ($1, 'winner', 3, 3, 1, 2, 'sha256:x')`,
+        [await auctionFor('winner without a winner')],
+      ),
+    );
+    expect(emptyWinner.constraint).toBe('auction_results_winner_matches_outcome');
+
+    // `no_bids` that counted bids.
+    const busyNoBids = await expectRejected(client, async () =>
+      client.query(
+        `INSERT INTO auction_results
+           (auction_id, outcome, total_bids, total_valid_bids, unique_amount_count,
+            participant_count, frozen_bid_checksum)
+         VALUES ($1, 'no_bids', 3, 3, 0, 2, 'sha256:y')`,
+        [await auctionFor('no bids with bids')],
+      ),
+    );
+    expect(busyNoBids.constraint).toBe('auction_results_no_bids_has_no_bids');
+
+    // `no_unique_bid` that found a unique amount after all.
+    const contradictory = await expectRejected(client, async () =>
+      client.query(
+        `INSERT INTO auction_results
+           (auction_id, outcome, total_bids, total_valid_bids, unique_amount_count,
+            participant_count, frozen_bid_checksum)
+         VALUES ($1, 'no_unique_bid', 3, 3, 1, 2, 'sha256:z')`,
+        [await auctionFor('no unique bid with one')],
+      ),
+    );
+    expect(contradictory.constraint).toBe('auction_results_no_unique_had_bids');
+  });
+
+  /** An auction order must carry the deadline its winner was told. */
+  it('refuses an auction order with no payment deadline', async () => {
+    const { rows } = await client.query<{ id: string }>(
+      `INSERT INTO auctions
+         (product_id, seller_id, title, bid_fee_minor, min_bid_minor, max_bid_minor,
+          max_bids_per_user, starts_at, ends_at, status, closed_at)
+       VALUES ($1, $2, 'deadline-less order', 500, 100, 50000, 10,
+               now() - interval '2 hours', now() - interval '1 hour', 'calculating', now())
+       RETURNING id`,
+      [fx.productId, fx.sellerId],
+    );
+
+    const failure = await expectRejected(client, () =>
+      client.query(
+        `INSERT INTO orders
+           (order_number, user_id, seller_id, product_id, auction_id,
+            subtotal_minor, total_minor)
+         VALUES ('HL-TEST-000001', $1, $2, $3, $4, 100, 100)`,
+        [fx.userId, fx.sellerId, fx.productId, rows[0]!.id],
+      ),
+    );
+    expect(failure.constraint).toBe('orders_auction_order_has_deadline');
   });
 });
 

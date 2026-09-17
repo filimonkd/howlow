@@ -314,3 +314,44 @@ export async function findAuctionsWithUnpaidRefunds(limit: number, tx?: Tx): Pro
   );
   return rows.map((row) => row.auction_id);
 }
+
+/**
+ * Auctions that need deciding.
+ *
+ * The recovery query for the closing workflow, and the reason a crashed close
+ * is not a stuck auction. Three cases, all of them "past bidding, no result
+ * row":
+ *
+ *   * **`closing`** — the lifecycle stopped the bidding and nothing has
+ *     decided the auction yet. Normally the scheduled job does it within
+ *     seconds; this catches the case where the job never ran.
+ *   * **`calculating`** — a close was interrupted after T1 committed. The
+ *     auction is visibly mid-flight, which is exactly why `calculating` is a
+ *     real state rather than one folded into the decision.
+ *   * **`cancelled` with participants** — an auction pulled while people had
+ *     bid. It is terminal and keeps no status to change, but it still owes a
+ *     result row (an operator needs to know what the bid set looked like) and
+ *     it still owes everybody their fees back.
+ *
+ * `auctions` is the driving table and is read only; the `NOT EXISTS` against
+ * this module's own `auction_results` is what makes the query a to-do list
+ * rather than a repeat of work already done.
+ */
+export async function findAuctionsAwaitingResult(limit: number, tx?: Tx): Promise<readonly string[]> {
+  const { rows } = await runner(tx).query<{ id: string }>(
+    `SELECT a.id
+       FROM auctions a
+      WHERE (
+              a.status IN ('closing', 'calculating')
+              OR (
+                a.status = 'cancelled'
+                AND EXISTS (SELECT 1 FROM auction_participants p WHERE p.auction_id = a.id)
+              )
+            )
+        AND NOT EXISTS (SELECT 1 FROM auction_results r WHERE r.auction_id = a.id)
+      ORDER BY a.ends_at ASC
+      LIMIT $1`,
+    [limit],
+  );
+  return rows.map((row) => row.id);
+}
