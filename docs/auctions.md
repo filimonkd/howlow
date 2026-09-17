@@ -3,9 +3,11 @@
 The auction lifecycle, how it is scheduled, and the locking that keeps it
 correct under concurrency.
 
-Phase 4 owns everything up to the moment bidding stops. Bid submission is
-Phase 5; result calculation is Phase 6. The [boundary](#the-phase-4--phase-5--6-boundary)
-is stated explicitly at the end.
+This module owns everything up to the moment bidding stops, and the two
+transitions that carry a closing auction to `completed`. Bid submission belongs
+to [bidding.md](bidding.md); deciding the winner to [results.md](results.md)
+and [auction-closing.md](auction-closing.md). The
+[boundary](#the-phase-4--phase-5--6-boundary) is stated explicitly at the end.
 
 ## The lifecycle
 
@@ -430,13 +432,19 @@ leaves `auction_results` and `bids` empty.
 
 What is already prepared for the next phases:
 
-| Phase | Owns                                                   | Prepared here                                                         |
-| ----- | ------------------------------------------------------ | --------------------------------------------------------------------- |
-| 5     | bid submission, fee debit, per-user limits             | `live` accepts bids by status; the lock order; `acceptsBids()`        |
-| 6     | `closing → calculating → completed`, `LUB_V1`, winners | both transitions declared in the table; `closing` reached and audited |
-| 10    | order fulfilment                                       | the `consumed` reservation state                                      |
-| 11    | guaranteed notification delivery                       | channel-neutral lifecycle events                                      |
+| Phase | Owns                                       | Prepared here                                                               |
+| ----- | ------------------------------------------ | --------------------------------------------------------------------------- |
+| 5     | bid submission, fee debit, per-user limits | `live` accepts bids by status; the lock order; `acceptsBids()`              |
+| 6     | `LUB_V1`, winners, orders, refunds         | `beginCalculating` and `complete` live here; the results module drives them |
+| 10    | order fulfilment                           | the `consumed` reservation state                                            |
+| 11    | guaranteed notification delivery           | channel-neutral lifecycle events                                            |
 
-The transitions Phase 6 needs are already in the table, so the service it adds
-enforces the same previous-state rules these do — but nothing in Phase 4
-performs them.
+`beginCalculating` and `complete` are implemented in `lifecycle.ts` alongside
+every other transition, so they consult the same table and enforce the same
+previous-state rules. What is different about those two is that they take the
+**caller's** transaction rather than opening their own: the closing workflow
+has to commit the result row, the winner's order and the status together, and a
+function that opened its own transaction could not take part in that. They
+therefore publish no event either — the caller publishes after commit, exactly
+as the transitions above do. See
+[auction-closing.md](auction-closing.md).
