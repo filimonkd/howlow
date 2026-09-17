@@ -501,6 +501,126 @@ export async function close(input: {
   return result;
 }
 
+/**
+ * Move a closing auction into result calculation.
+ *
+ * ## Why this one takes a transaction
+ *
+ * Every other transition in this file owns its transaction. These last two do
+ * not, because the closing workflow has to decide the boundaries: the result
+ * row, the winner's order or the released unit, and the move to `completed`
+ * all have to commit together or not at all, and a function that opened its
+ * own transaction could not take part in that. So `beginCalculating` and
+ * `complete` run inside the caller's transaction, under the auction lock the
+ * caller already holds.
+ *
+ * The consequence is that neither publishes an event — a publish inside a
+ * transaction that may be retried would announce a transition twice. The
+ * caller publishes after commit, exactly as the transitions above do.
+ *
+ * ## The freeze
+ *
+ * There is no separate freeze flag, and there must never be one. Bid
+ * submission requires `status = 'live'`, so bids stop the moment `close()`
+ * commits `closing` — before this function is reached. This transition
+ * therefore does not freeze anything; it records that the frozen set is now
+ * being counted, which is why an auction found in `calculating` long after its
+ * deadline is an alarm rather than a normal state.
+ *
+ * `closed_at` is stamped here because `auctions_closed_at_when_finished`
+ * requires it from `calculating` onwards: the instant bidding actually ended is
+ * part of the record, not something to re-derive from `ends_at`.
+ */
+export async function beginCalculating(
+  input: {
+    auctionId: string;
+    context?: OperationContext | undefined;
+  },
+  tx: Tx,
+): Promise<TransitionResult> {
+  const begun = await beginTransition({ auctionId: input.auctionId, action: 'beginCalculating' }, tx);
+  if ('alreadyDone' in begun) return { auction: begun.alreadyDone, changed: false };
+
+  const now = await repo.databaseNow(tx);
+  const updated = await repo.applyTransition(
+    {
+      id: begun.auction.id,
+      expectedStatus: begun.auction.status,
+      nextStatus: 'calculating',
+      // Bidding ended when `closing` was committed; `closing_at` holds that
+      // instant, and `closed_at` repeats it rather than inventing a second
+      // one. An auction that somehow reached `closing` without the column set
+      // falls back to the database clock, so the CHECK is always satisfied.
+      closedAt: begun.auction.closingAt ?? now,
+    },
+    tx,
+  );
+  if (!updated) return { auction: begun.auction, changed: false };
+
+  await audit(
+    {
+      action: 'auction.calculating',
+      auction: updated,
+      previousStatus: begun.auction.status,
+      context: input.context,
+      details: {
+        closedAt: updated.closedAt?.toISOString() ?? null,
+        algorithmVersion: updated.algorithmVersion,
+      },
+    },
+    tx,
+  );
+  return { auction: updated, changed: true };
+}
+
+/**
+ * Finish an auction. The result is published and nothing about it may change
+ * again.
+ *
+ * Runs in the caller's transaction for the reason given on
+ * `beginCalculating`, and is the last write of the closing workflow: by the
+ * time it is called the result row exists, the order or the inventory release
+ * has happened, and this commits all of it together with the status.
+ *
+ * `completed` is terminal in the transition table *and* in the database
+ * trigger, so once this commits no code path — this file included — can move
+ * the auction again or recompute its winner. That is the structural half of
+ * the trust rule; the immutable `auction_results` row is the other half.
+ */
+export async function complete(
+  input: {
+    auctionId: string;
+    context?: OperationContext | undefined;
+    details?: Record<string, unknown> | undefined;
+  },
+  tx: Tx,
+): Promise<TransitionResult> {
+  const begun = await beginTransition({ auctionId: input.auctionId, action: 'complete' }, tx);
+  if ('alreadyDone' in begun) return { auction: begun.alreadyDone, changed: false };
+
+  const updated = await repo.applyTransition(
+    {
+      id: begun.auction.id,
+      expectedStatus: begun.auction.status,
+      nextStatus: 'completed',
+    },
+    tx,
+  );
+  if (!updated) return { auction: begun.auction, changed: false };
+
+  await audit(
+    {
+      action: 'auction.completed',
+      auction: updated,
+      previousStatus: begun.auction.status,
+      context: input.context,
+      details: input.details,
+    },
+    tx,
+  );
+  return { auction: updated, changed: true };
+}
+
 // ---------------------------------------------------------------------------
 // Operational transitions
 // ---------------------------------------------------------------------------
