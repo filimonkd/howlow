@@ -84,20 +84,53 @@ export async function login(
   return result;
 }
 
+/**
+ * The refresh in flight, if there is one.
+ *
+ * **A refresh token may be presented exactly once.** The API rotates it and
+ * treats a second presentation as theft: it revokes the whole session family,
+ * which signs the user out and makes them re-authenticate with an OTP. That
+ * behaviour is correct and must not be weakened — so the client's job is never
+ * to present the same token twice, and this is how it keeps that promise.
+ *
+ * Two callers racing is not hypothetical. React's `StrictMode` invokes effects
+ * twice in development, so the session-restore effect fired two refreshes with
+ * one stored token and the second revoked the session — **a returning user was
+ * signed out on every page load of the dev server.** Found by driving the real
+ * website in Chromium; nothing in the module tests could see it, because the
+ * defect is that two callers exist rather than that either is wrong.
+ *
+ * It is not only a development problem. Two tabs restoring at once, or a
+ * reload during a slow refresh, present the same stored token twice in
+ * production for exactly the same reason.
+ */
+let inFlight: Promise<boolean> | undefined;
+
 export async function refresh(): Promise<boolean> {
-  const refreshToken = storedRefreshToken();
-  if (refreshToken === undefined) return false;
+  // Concurrent callers share one rotation and one answer. Cleared in
+  // `finally`, so a later refresh — after the token has rotated — is a fresh
+  // request rather than a cached verdict.
+  inFlight ??= (async () => {
+    const refreshToken = storedRefreshToken();
+    if (refreshToken === undefined) return false;
+    try {
+      const result = await apiFetch<{ tokens: TokenPair }>(
+        '/auth/refresh',
+        (v) => v as { tokens: TokenPair },
+        json({ refreshToken }),
+      );
+      rememberTokens(result.tokens);
+      return true;
+    } catch {
+      forgetTokens();
+      return false;
+    }
+  })();
+
   try {
-    const result = await apiFetch<{ tokens: TokenPair }>(
-      '/auth/refresh',
-      (v) => v as { tokens: TokenPair },
-      json({ refreshToken }),
-    );
-    rememberTokens(result.tokens);
-    return true;
-  } catch {
-    forgetTokens();
-    return false;
+    return await inFlight;
+  } finally {
+    inFlight = undefined;
   }
 }
 

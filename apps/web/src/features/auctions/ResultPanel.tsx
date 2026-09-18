@@ -145,8 +145,16 @@ export function ResultPanel({
   );
 }
 
+/**
+ * The *auction's* outcome, not the viewer's.
+ *
+ * `winner` reads "A winner was found" rather than "Won", because this row sits
+ * above the viewer's own verdict and a loser reading "Outcome: Won" next to
+ * "You did not win" has to work out which of the two is about them. Seen in a
+ * browser drive of a decided auction from a losing bidder's account.
+ */
 const OUTCOME_LABEL: Record<AuctionResultDto['outcome'], string> = {
-  winner: 'Won',
+  winner: 'A winner was found',
   no_unique_bid: 'No winner — every amount was bid by more than one person',
   no_bids: 'No bids were placed',
   cancelled: 'Cancelled',
