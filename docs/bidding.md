@@ -454,8 +454,9 @@ HOWLOW awards the lowest amount nobody else matched. A client that could ask
 
 - No API field exposes per-amount occupancy, a bidder count, or anything a
   client could difference across two responses to recover one.
-- The only pre-close status is `submitted`. `valid` in the database is mapped to
-  it; `won` and `not_winning` are Phase 6's to decide.
+- The only pre-close status is `submitted`. `valid` in the database is mapped
+  to it; whether a bid won is decided by the results module, after the close,
+  and is published on the result rather than on the bid.
 - `DUPLICATE_AMOUNT` is only ever about the caller's **own** bids. Telling
   someone their 27 collides with a stranger's would hand them the signal.
 - The realtime event carries counts only — never an amount, a bid id or a user.
@@ -504,22 +505,30 @@ story rather than a record. No fraud scoring in Phase 5.
 
 `web`, `telegram`, `admin`. **There is no branch on `channel` anywhere in the
 bidding module.** A Telegram bid and a web bid have the same fee, the same
-status, the same standing and the same limit, and Phase 6's algorithm must
-reach the same answer whatever it says.
+status, the same standing and the same limit, and `channel` appears in no
+clause of the winner algorithm — a test places the same distribution across
+both channels and requires the same winner.
 
-## The Phase 5 / Phase 6 boundary
+## Where bidding ends
 
-Phase 5 ends at **accepted valid bids, or a rejected request**.
+The bidding engine ends at **accepted valid bids, or a rejected request**.
 
-Not implemented here, and asserted absent by the tests and the smoke script:
+Not done here, and asserted absent by the tests and the smoke script:
 
 - auction result calculation, and LUB_V1
 - unique-amount counting or winner determination
 - any write to `auction_results`
-- winner orders, `NO_UNIQUE_BID` refunds, `NO_BIDS` handling
+- winner orders, `no_unique_bid` refunds, `no_bids` handling
 
-An auction may perfectly well be `live` with zero bids. The close worker may
-move it to `closing`; nothing in Phase 5 determines a winner.
+An auction may perfectly well be `live` with zero bids. All of the above
+belongs to `modules/results`, which reads `bids` — and reads them only. The
+write monopoly on `bids` and `auction_participants` stays here, which is what
+makes the rows it counts worth counting.
+
+The status is also the whole of the freeze: bid submission requires
+`status = 'live'`, so bids stop the instant `close()` commits `closing`. There
+is deliberately no second freeze flag anywhere — see
+[auction-closing.md](auction-closing.md).
 
 ## Verification
 
@@ -536,3 +545,6 @@ Telegram appears in the website's own bid list for the same account — one
 engine, one limit. Module tests passing while a route was broken is a mistake
 this project has made twice, and both of this phase's channel defects were
 found by running the surfaces rather than reading them.
+
+For what happens to these bids once the auction closes, see
+[results.md](results.md) and [auction-closing.md](auction-closing.md).

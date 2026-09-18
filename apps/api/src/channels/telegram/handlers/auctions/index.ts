@@ -2,9 +2,16 @@ import type { Bot, Context } from 'grammy';
 import { acceptsBids, AppError } from '@howlow/shared';
 import { loadConfig } from '../../../../config/index.js';
 import * as auctions from '../../../../modules/auctions/index.js';
+import * as auth from '../../../../modules/auth/index.js';
+import * as results from '../../../../modules/results/index.js';
 import { getLogger } from '../../../../shared/index.js';
-import { auctionDetailKeyboard, auctionListKeyboard, CALLBACK } from '../../keyboards/auctions.js';
-import { renderDetail, renderSummary } from '../../render/auctions.js';
+import {
+  auctionDetailKeyboard,
+  auctionListKeyboard,
+  CALLBACK,
+  resultKeyboard,
+} from '../../keyboards/auctions.js';
+import { renderDetail, renderMyOutcome, renderResult, renderSummary } from '../../render/auctions.js';
 
 /**
  * Telegram auction browsing.
@@ -14,9 +21,14 @@ import { renderDetail, renderSummary } from '../../render/auctions.js';
  * own. `getPublicAuction` is what refuses a draft, so the bot cannot show one
  * even if a callback payload names it.
  *
- * Browsing only. The bid button on the detail keyboard is handled by
+ * Browsing and results. The bid button on the detail keyboard is handled by
  * `handlers/bidding`, which sequences the confirmation flow and calls the
  * one bidding engine — there is no second path from a chat to a bid.
+ *
+ * **Nothing here computes a result.** The winner was decided by
+ * `modules/results` when the auction closed; the bot reads the row and renders
+ * it, exactly as the website does. A chat that worked out its own winner would
+ * eventually disagree with the browser in front of the same bidder.
  */
 const PAGE_SIZE = 5;
 
@@ -74,6 +86,11 @@ async function sendAuctionDetail(ctx: Context, auctionId: string): Promise<void>
   const detail = auctions.toDetailDto(auction, images);
   const url = webUrl(auction);
 
+  // Whether a result exists is read rather than inferred from the status: an
+  // auction can be `completed` for a moment before its row is committed, and a
+  // button offering a result that is not there would be a dead end.
+  const result = await results.getResult(auction.id);
+
   await ctx.reply(renderDetail(detail, url), {
     parse_mode: 'Markdown',
     link_preview_options: { is_disabled: true },
@@ -81,7 +98,62 @@ async function sendAuctionDetail(ctx: Context, auctionId: string): Promise<void>
       auctionId: auction.id,
       webUrl: url,
       acceptsBids: acceptsBids(auction.status),
+      hasResult: result !== undefined,
     }),
+  });
+}
+
+/**
+ * The result of a decided auction, plus the reader's own part in it.
+ *
+ * Two messages in one reply: the public result, and — for somebody who
+ * actually bid and whose Telegram account is connected — what it meant for
+ * them. A reader who did not take part sees only the public half, because
+ * there is nothing personal to tell them and inventing a line would imply
+ * there was.
+ *
+ * The caller is always resolved from the numeric Telegram user id, never from
+ * the callback payload: Telegram delivers whatever the client sends, so a
+ * payload naming a user would let anyone read somebody else's outcome.
+ */
+async function sendAuctionResult(ctx: Context, auctionId: string): Promise<void> {
+  const auction = await auctions.getPublicAuction(auctionId);
+  const result = await results.getResult(auction.id);
+
+  if (!result) {
+    await ctx.reply(
+      auction.status === 'calculating'
+        ? 'This auction has closed and is being decided. The result will be here shortly.'
+        : 'This auction has not been decided yet.',
+    );
+    return;
+  }
+
+  const sections = [
+    renderResult({
+      productTitle: auction.productTitle,
+      result: results.toResultDto(result, auction.currency),
+    }),
+  ];
+
+  const from = ctx.from;
+  if (from && !from.is_bot) {
+    const viewer = await auth.resolveTelegramUser(String(from.id));
+    if (viewer) {
+      const mine = await results.getMyOutcome({
+        auctionId: auction.id,
+        userId: viewer.id,
+        currency: auction.currency,
+      });
+      const personal = mine === undefined ? undefined : renderMyOutcome(mine);
+      if (personal !== undefined) sections.unshift(personal);
+    }
+  }
+
+  await ctx.reply(sections.join('\n\n———\n\n'), {
+    parse_mode: 'Markdown',
+    link_preview_options: { is_disabled: true },
+    reply_markup: resultKeyboard(auction.id),
   });
 }
 
@@ -109,6 +181,27 @@ export function registerAuctionHandlers(bot: Bot): void {
     try {
       await ctx.answerCallbackQuery();
       await sendAuctionDetail(ctx, auctionId);
+    } catch (error) {
+      await replyWithError(ctx, error);
+    }
+  });
+
+  /**
+   * Show a decided auction's result.
+   *
+   * The payload carries an id and nothing else. The auction is re-resolved
+   * through the public read, and who is asking comes from the Telegram user id
+   * rather than from anything the client sent.
+   */
+  bot.callbackQuery(new RegExp(`^${CALLBACK.auctionResult}:(.+)$`), async (ctx) => {
+    const auctionId = ctx.match?.[1];
+    if (auctionId === undefined) {
+      await ctx.answerCallbackQuery({ text: 'That auction is no longer available.' });
+      return;
+    }
+    try {
+      await ctx.answerCallbackQuery();
+      await sendAuctionResult(ctx, auctionId);
     } catch (error) {
       await replyWithError(ctx, error);
     }

@@ -348,8 +348,8 @@ service in the same transaction, and a zero fee writes no ledger entry.
 The lock order is **auction → product → wallet → participant**, which is what
 keeps a bid from deadlocking against inventory reservation.
 
-**Nothing anywhere reveals whether an amount is unique.** The only pre-close
-status is `submitted`; Phase 6 decides `won` and `not_winning`.
+**Nothing anywhere reveals whether an amount is unique** while an auction
+runs. The only pre-close status is `submitted`; the result decides the rest.
 
 ```bash
 npm run test:db          # the engine and seven concurrency races
@@ -358,8 +358,52 @@ npm run verify:bidding   # both channels against the built application
 
 [docs/bidding.md](docs/bidding.md) documents the submission contract, batch
 semantics, idempotency, the lock ordering, the concurrency strategy, rate
-limits, both channel flows, the error codes, the live-uniqueness policy and the
-Phase 5/6 boundary.
+limits, both channel flows, the error codes and the live-uniqueness policy.
+
+---
+
+## Results — LUB_V1
+
+HOWLOW is a **lowest-unique-bid** auction, and the rule is easy to get wrong:
+
+> The winner is the **lowest bid amount that exactly one valid bid was placed
+> at.**
+
+Not the lowest bid. The lowest bid usually loses, because low amounts are the
+obvious guesses and obvious guesses collide. If every amount was chosen by two
+or more bidders, **nobody wins** and the participation fees go back.
+
+`modules/results/lubCalculator.ts` is the **only** implementation of that rule
+in the codebase. No channel, no client and no admin tool computes a winner;
+they read the result it wrote. PostgreSQL answers the uniqueness question from
+a partial index — the bid set is never loaded into Node to count it — and a
+100,000-bid auction is decided in about 76 ms.
+
+Every result stores the statistics it was computed from and a SHA-256 checksum
+of the frozen bid set, so a result can be re-verified later without anybody's
+bids being published. `auction_results` is append-only in the database:
+**the winner of a decided auction never changes.**
+
+```
+GET /api/v1/auctions/:publicId/result        # public: amount, statistics, checksum
+GET /api/v1/auctions/:publicId/result/me     # your own outcome, and your order
+```
+
+Closing is the worker's, never a request's: `live → closing → calculating →
+completed`, with the result row, the winner's `pending_payment` order or the
+released unit, and the final status all committing together. Running a close
+twice is made harmless by three unique indexes rather than by the queue.
+
+```bash
+npm run test:db          # the seven LUB fixtures, concurrency A–G, 1k/10k/100k
+npm run verify:results   # real API and worker processes, decided by the sweeper
+```
+
+[docs/results.md](docs/results.md) documents the algorithm, the checksum
+contract, the four outcomes, the measured performance and the disclosure rules;
+[docs/auction-closing.md](docs/auction-closing.md) documents the state machine,
+the locking, idempotency, the last-second race, refunds, inventory, the sweeper
+and the audit trail.
 
 ---
 
@@ -412,5 +456,5 @@ ready for review. See [CONTRIBUTING.md](CONTRIBUTING.md).
 Each phase contains only its own scope. Phase 4 adds the catalog and the auction
 lifecycle and deliberately contains **no** bidding, `LUB_V1`, winner
 calculation, payment provider or shipping logic. An auction can go live with
-zero bids and reach `closing` without anything being decided; Phase 5 adds bid
-submission and Phase 6 the result.
+zero bids and reach `closing` without anything being decided; the bidding
+engine adds submission and the results module the outcome.

@@ -84,6 +84,10 @@ const REQUIRED_CONSTRAINTS = [
   ['wallet_entries', 'wallet_entries_balance_non_negative'],
   ['orders', 'orders_total_is_sum_of_parts'],
   ['auction_results', 'auction_results_winner_complete'],
+  // The outcome and the winner columns cannot contradict each other.
+  ['auction_results', 'auction_results_winner_matches_outcome'],
+  // An auction order always carries the deadline its winner was told.
+  ['orders', 'orders_auction_order_has_deadline'],
   ['telegram_link_tokens', 'telegram_link_tokens_consumption_consistent'],
 ];
 

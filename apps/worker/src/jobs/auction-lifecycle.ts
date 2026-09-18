@@ -1,4 +1,9 @@
 import { close, findDueToClose, findDueToOpen, open } from '@howlow/api/modules/auctions';
+import {
+  closeAuction,
+  findAuctionsAwaitingResult,
+  sweepOutstandingRefunds,
+} from '@howlow/api/modules/results';
 import { Queue, Worker, type Job } from 'bullmq';
 import { getQueueConnection } from '../queues/connection.js';
 import { QUEUE_NAMES } from '../queues/index.js';
@@ -28,6 +33,21 @@ import { getLogger } from '../shared/logger.js';
  * from PostgreSQL and refuse to act early, so a worker whose own clock runs
  * fast cannot open an auction before its published start time. That is why a
  * job firing early is logged and dropped rather than retried into a loop.
+ *
+ * ## Closing is two calls, and the worker owns neither decision
+ *
+ * `runClose` calls `close()` to stop the bidding and then `closeAuction()` to
+ * decide the auction. Both belong to modules — the transition table owns the
+ * first, LUB_V1 and the results module own the second — and this file adds no
+ * rule to either. **The worker does not compute a winner**, does not decide an
+ * outcome and does not choose whether to refund; it decides only *when* to
+ * ask.
+ *
+ * It is also not where closing is made safe to repeat. The job ids keep
+ * duplicate work off the queue, which is a convenience; the guarantee that
+ * running a close twice produces one winner, one order and one refund is three
+ * unique indexes in PostgreSQL. A flushed Redis cannot cost an auction its
+ * result, and a duplicated job cannot give it two.
  */
 export interface AuctionJobData {
   readonly auctionId: string;
@@ -148,6 +168,19 @@ export async function runOpen(auctionId: string): Promise<LifecycleJobResult> {
   }
 }
 
+/**
+ * Stop the bidding, then decide the auction.
+ *
+ * Two module calls in sequence, and the split matters. `close()` is the only
+ * thing that may move `live → closing`, and it re-reads the database clock, so
+ * a job that fires early is refused here rather than deciding an auction whose
+ * bidding is still open. `closeAuction()` then owns everything from `closing`
+ * onwards, including the case where a previous attempt already got part of the
+ * way.
+ *
+ * A job that fires early stops after the refusal. There is nothing to decide:
+ * the bid set is still growing, and `closeAuction()` would refuse it too.
+ */
 export async function runClose(auctionId: string): Promise<LifecycleJobResult> {
   const logger = getLogger();
   try {
@@ -156,7 +189,6 @@ export async function runClose(auctionId: string): Promise<LifecycleJobResult> {
       { event: 'auction.closing', auctionId, status: result.auction.status, changed: result.changed },
       'auction.closing',
     );
-    return { auctionId, status: result.auction.status, changed: result.changed };
   } catch (error) {
     if (isNotDue(error)) {
       logger.warn({ auctionId }, 'auction.close: fired before the database says it is due');
@@ -164,6 +196,45 @@ export async function runClose(auctionId: string): Promise<LifecycleJobResult> {
     }
     throw error;
   }
+  return runDecide(auctionId);
+}
+
+/**
+ * Decide an auction whose bidding has stopped.
+ *
+ * Separate from `runClose` so the sweeper can resume a close that was
+ * interrupted between the two: an auction in `closing` or `calculating` needs
+ * this half and not the first. Calling it on an auction already decided is a
+ * no-op that reports the published result, which is what makes it safe for
+ * both callers.
+ *
+ * The result is logged with the outcome and the winning amount because that is
+ * the one line an operator wants when asking what happened to an auction — and
+ * because the amount is public once the auction has closed. `decided: false`
+ * says this run found the auction already settled.
+ */
+export async function runDecide(auctionId: string): Promise<LifecycleJobResult> {
+  const logger = getLogger();
+  const outcome = await closeAuction({ auctionId, context: { channel: 'system' } });
+  logger.info(
+    {
+      event: 'auction.result_ready',
+      auctionId,
+      outcome: outcome.outcome,
+      winningAmountMinor: outcome.winningAmountMinor?.toString() ?? null,
+      currency: outcome.currency,
+      orderId: outcome.orderId,
+      decided: outcome.decided,
+    },
+    outcome.decided ? 'auction.decided' : 'auction.decide: already decided, nothing to do',
+  );
+  return {
+    auctionId,
+    // A cancelled auction keeps its own terminal status; everything else that
+    // reaches a result is `completed`.
+    status: outcome.outcome === 'cancelled' ? 'cancelled' : 'completed',
+    changed: outcome.decided,
+  };
 }
 
 /**
@@ -194,6 +265,10 @@ const SWEEP_BATCH = 100;
 export interface SweepResult {
   readonly opened: number;
   readonly closed: number;
+  /** Auctions decided by this pass that the scheduled close had left behind. */
+  readonly decided: number;
+  /** Auctions whose outstanding participation fees this pass returned. */
+  readonly refunded: number;
   readonly examined: number;
   readonly failures: number;
 }
@@ -209,6 +284,23 @@ export interface SweepResult {
  *
  * It holds no lifecycle logic of its own, which is what makes it safe to race
  * the scheduled job: whichever arrives second finds the work done.
+ *
+ * ## Four passes
+ *
+ *   1. auctions due to open
+ *   2. auctions due to close — `close()` then the decision
+ *   3. **auctions past bidding with no result** — a close interrupted between
+ *      its two transactions, or one whose job never ran at all. Without this
+ *      pass an auction could sit in `calculating` indefinitely, which is the
+ *      whole reason that state is observable.
+ *   4. **decided auctions with fees still owed** — the refund pass runs
+ *      outside the closing transaction, so a crash can leave some
+ *      participants paid back and some not. This asks the ledger who is still
+ *      owed and finishes the job.
+ *
+ * Passes 3 and 4 are what make the closing workflow's two splits safe rather
+ * than merely convenient: nothing has to remember what it was doing, because
+ * PostgreSQL is asked what is outstanding.
  */
 export async function runSweep(): Promise<SweepResult> {
   const logger = getLogger();
@@ -217,6 +309,7 @@ export async function runSweep(): Promise<SweepResult> {
 
   let opened = 0;
   let closed = 0;
+  let decided = 0;
   let failures = 0;
 
   for (const auctionId of dueToOpen) {
@@ -239,16 +332,37 @@ export async function runSweep(): Promise<SweepResult> {
     }
   }
 
+  // Auctions past bidding that nothing has decided: a close interrupted
+  // between its two transactions, or one whose job never ran.
+  const awaitingResult = await findAuctionsAwaitingResult(SWEEP_BATCH);
+  for (const auctionId of awaitingResult) {
+    try {
+      const result = await runDecide(auctionId);
+      if (result.changed) decided += 1;
+    } catch (error) {
+      failures += 1;
+      logger.error({ err: error, auctionId }, 'auction.sweeper: could not decide an undecided auction');
+    }
+  }
+
+  // Fees still owed on already-decided auctions. `sweepOutstandingRefunds`
+  // logs and continues past a failure of its own, so one bad auction cannot
+  // stop the rest — the point of a sweep is that it makes progress.
+  const refundPasses = await sweepOutstandingRefunds({ limit: SWEEP_BATCH, context: { channel: 'system' } });
+  const refunded = refundPasses.filter((pass) => pass.refunded > 0).length;
+
   const result: SweepResult = {
     opened,
     closed,
-    examined: dueToOpen.length + dueToClose.length,
+    decided,
+    refunded,
+    examined: dueToOpen.length + dueToClose.length + awaitingResult.length + refundPasses.length,
     failures,
   };
 
   // Only a sweep that actually repaired something, or failed, is worth a line:
   // a healthy platform runs this every thirty seconds and finds nothing.
-  if (opened > 0 || closed > 0 || failures > 0) {
+  if (opened > 0 || closed > 0 || decided > 0 || refunded > 0 || failures > 0) {
     logger.info({ event: 'auction.swept', ...result }, 'auction.sweeper: repaired missed executions');
   } else {
     logger.debug({ event: 'auction.swept', ...result }, 'auction.sweeper: nothing due');

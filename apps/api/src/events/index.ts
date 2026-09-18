@@ -1,4 +1,4 @@
-import type { AuctionEvent, AuctionStatsEvent } from '@howlow/shared';
+import type { AuctionEvent, AuctionStatsEvent, ResultEvent } from '@howlow/shared';
 import { getRedis } from '../db/index.js';
 import { getLogger } from '../shared/logger.js';
 
@@ -71,5 +71,63 @@ export async function publishAuctionStats(event: AuctionStatsEvent): Promise<voi
       { err: error, auctionId: event.auctionId },
       'Auction stats could not be published; the bids themselves are committed',
     );
+  }
+}
+
+/**
+ * Result events.
+ *
+ * Published once a result is **committed**: the `auction_results` row exists,
+ * the winner's order or the released unit exists, and the auction is
+ * `completed`. Never from inside that transaction — a retried transaction
+ * would announce a result twice, and a rolled-back one would announce a result
+ * that does not exist.
+ *
+ * ## Why a channel of its own
+ *
+ * A closing auction publishes two different kinds of thing. `AUCTION_CLOSING`
+ * is a status change and belongs with the rest of the lifecycle; the result is
+ * an outcome, and its payload carries money and (for the addressed events) a
+ * user id. Keeping them apart means a subscriber that only renders status
+ * badges never receives a winning amount, and the one that notifies a winner
+ * does not have to filter lifecycle traffic to find them.
+ *
+ * ## What is on the wire, and what is not
+ *
+ * `AUCTION_RESULT_READY`, `AUCTION_NO_UNIQUE_BID` and `AUCTION_NO_BIDS` are
+ * auction-wide and carry no user at all. `AUCTION_WON` and `AUCTION_NOT_WON`
+ * are addressed — they name the one user they concern — so a subscriber
+ * delivers each to that user and nobody else. No event ever carries a losing
+ * bidder's amounts, a list of participants or a distribution of amounts: the
+ * winning amount is the answer the auction was asking and is public; every
+ * other bid stays private after the close exactly as it was during it.
+ *
+ * Same at-most-once contract as the other two channels. The durable record is
+ * the immutable `auction_results` row; this is fan-out, and it never throws.
+ */
+export const AUCTION_RESULT_CHANNEL = 'howlow:auction-results';
+
+export async function publishResultEvent(event: ResultEvent): Promise<void> {
+  try {
+    await getRedis().publish(AUCTION_RESULT_CHANNEL, JSON.stringify(event));
+  } catch (error) {
+    getLogger().warn(
+      { err: error, auctionId: event.auctionId, event: event.event },
+      'Auction result could not be published; the result itself is committed',
+    );
+  }
+}
+
+/**
+ * Publish a whole result fan-out, best effort.
+ *
+ * The events are published in order — the auction-wide one first, then the
+ * addressed ones — so a listener that renders the auction before notifying
+ * users sees them in the order it would choose. Each publish is independent
+ * and none throws, so one unreachable moment cannot stop the rest.
+ */
+export async function publishResultEvents(events: readonly ResultEvent[]): Promise<void> {
+  for (const event of events) {
+    await publishResultEvent(event);
   }
 }

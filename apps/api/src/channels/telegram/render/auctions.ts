@@ -1,4 +1,10 @@
-import type { AuctionDetailDto, AuctionSummaryDto, WalletEntryType } from '@howlow/shared';
+import type {
+  AuctionDetailDto,
+  AuctionResultDto,
+  AuctionSummaryDto,
+  MyAuctionOutcomeDto,
+  WalletEntryType,
+} from '@howlow/shared';
 import { formatMoney, moneyFromMinorString } from '@howlow/shared';
 
 /**
@@ -230,3 +236,123 @@ export const WALLET_ENTRY_LABELS: Partial<Record<WalletEntryType, string>> = {
   bid_fee: 'bid fee',
   bid_fee_refund: 'bid fee refunded',
 };
+
+// ---------------------------------------------------------------------------
+// Results
+// ---------------------------------------------------------------------------
+
+const OUTCOME_HEADINGS: Record<AuctionResultDto['outcome'], string> = {
+  winner: '🏆 *Result*',
+  no_unique_bid: '🤝 *No winner*',
+  no_bids: '🕸 *No bids*',
+  cancelled: '✖ *Cancelled*',
+};
+
+/**
+ * The public result of a closed auction, for a chat.
+ *
+ * ## What is here, and what can never be
+ *
+ * The winning amount and the statistics: they are the answer the auction was
+ * asking, and every bidder needs them to make sense of their own outcome. The
+ * checksum, so the result can be re-verified later without anybody's bids
+ * being published.
+ *
+ * **No bidder is named, and no amount but the winning one appears.** Not a
+ * list of participants, not a per-amount breakdown, not "how close you were".
+ * That is not discretion for its own sake: a frequency table of amounts,
+ * published after the close, is still advice about what to avoid in the next
+ * auction, and the format only works while nobody has it.
+ *
+ * Nothing here computes anything. Every figure was decided by the results
+ * module when the auction closed and is rendered as it was stored — the bot
+ * cannot reach a different answer from the website's.
+ */
+export function renderResult(input: { productTitle: string; result: AuctionResultDto }): string {
+  const { result } = input;
+  const currency = result.currency;
+  const lines = [OUTCOME_HEADINGS[result.outcome], '', input.productTitle, ''];
+
+  if (result.outcome === 'winner' && result.winningAmountMinor !== null) {
+    lines.push(`Winning bid: *${money(result.winningAmountMinor, currency)}*`);
+    lines.push('It was the lowest amount exactly one person bid.');
+  } else if (result.outcome === 'no_unique_bid') {
+    lines.push('Every amount was bid by two or more people, so there was no');
+    lines.push('lowest unique bid and nobody won.');
+    lines.push('Participation fees have been returned.');
+  } else if (result.outcome === 'no_bids') {
+    lines.push('This auction closed without a single bid.');
+  } else {
+    lines.push('This auction was cancelled before it could be decided.');
+    lines.push('Any participation fees have been returned.');
+  }
+
+  lines.push(
+    '',
+    `Bids placed: ${String(result.statistics.totalValidBids)}`,
+    `People bidding: ${String(result.statistics.participantCount)}`,
+    `Amounts nobody matched: ${String(result.statistics.uniqueAmountCount)}`,
+    `Decided: ${new Date(result.computedAt).toUTCString()}`,
+    '',
+    `Algorithm: ${result.algorithmVersion}`,
+    `Bid-set checksum: \`${result.checksum}\``,
+  );
+  return lines.join('\n');
+}
+
+/**
+ * What one bidder learns about their own part in it.
+ *
+ * Four outcomes, four messages, each about *their* money — which is the
+ * question somebody opening a closed auction is actually asking. `won` is the
+ * only judgement made about them, and nothing here describes another bidder.
+ *
+ * Returns `undefined` for somebody who did not take part: there is nothing
+ * personal to tell them, and inventing a line would imply there was.
+ */
+export function renderMyOutcome(outcome: MyAuctionOutcomeDto): string | undefined {
+  const currency = outcome.currency;
+  if (outcome.bidCount === 0 && !outcome.won) return undefined;
+
+  if (outcome.won) {
+    const lines = [
+      '🎉 *You won.*',
+      '',
+      `Your bid of ${money(outcome.winningAmountMinor ?? '0', currency)} was the lowest amount`,
+      'nobody else matched.',
+    ];
+    if (outcome.order !== null) {
+      lines.push(
+        '',
+        `Order: ${outcome.order.orderNumber}`,
+        `To pay: ${money(outcome.order.totalMinor, currency)}`,
+        ...(outcome.order.paymentDueAt === null
+          ? []
+          : [`Pay by: ${new Date(outcome.order.paymentDueAt).toUTCString()}`]),
+      );
+    }
+    return lines.join('\n');
+  }
+
+  if (outcome.outcome === 'no_unique_bid' || outcome.outcome === 'cancelled') {
+    const lines = [
+      outcome.outcome === 'cancelled' ? '✖ *This auction was cancelled.*' : '🤝 *Nobody won.*',
+      '',
+      `You placed ${String(outcome.bidCount)} ${outcome.bidCount === 1 ? 'bid' : 'bids'}.`,
+    ];
+    if (outcome.refundedMinor !== '0') {
+      lines.push(`${money(outcome.refundedMinor, currency)} has been returned to your wallet.`);
+    }
+    return lines.join('\n');
+  }
+
+  return [
+    '*You did not win this time.*',
+    '',
+    `The winning bid was ${money(outcome.winningAmountMinor ?? '0', currency)}.`,
+    `You placed ${String(outcome.bidCount)} ${outcome.bidCount === 1 ? 'bid' : 'bids'}` +
+      (outcome.feesPaidMinor === '0' ? '.' : `, costing ${money(outcome.feesPaidMinor, currency)}.`),
+    '',
+    'Participation fees are not returned when an auction produces a winner.',
+  ].join('\n');
+}

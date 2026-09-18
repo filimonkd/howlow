@@ -7,6 +7,7 @@ import { publicCatalogRoutes } from './catalog.routes.js';
 import { sellerRoutes } from './seller.routes.js';
 import { healthRoutes } from './health.routes.js';
 import { meRoutes } from './me.routes.js';
+import { resultRoutes } from './result.routes.js';
 
 /**
  * The website's single API surface. Each router delegates straight into the
@@ -25,6 +26,9 @@ export function createApiRouter(): Router {
   // is matched by the authenticated router and never falls through to the
   // unauthenticated `/auctions/:publicId`.
   router.use('/auctions', bidRoutes);
+  // Results likewise: `/auctions/:publicId/result` has to be matched here
+  // before public discovery can read `result` as an auction reference.
+  router.use('/auctions', resultRoutes);
   // Public discovery is mounted last so a named route above always wins.
   router.use('/', publicCatalogRoutes);
 

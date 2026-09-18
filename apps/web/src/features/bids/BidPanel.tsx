@@ -180,7 +180,9 @@ export function BidPanel({
             ? 'This auction has not opened yet. Bidding opens at the start time above.'
             : 'This auction is no longer taking bids.'}
         </p>
-        {mine !== undefined && mine.bids.length > 0 && <MyBids bids={mine.bids} currency={currency} />}
+        {mine !== undefined && mine.bids.length > 0 && (
+          <MyBids bids={mine.bids} currency={currency} decided={auction.status === 'completed'} />
+        )}
       </Panel>
     );
   }
@@ -309,7 +311,9 @@ export function BidPanel({
         </div>
       )}
 
-      {mine !== undefined && mine.bids.length > 0 && <MyBids bids={mine.bids} currency={currency} />}
+      {mine !== undefined && mine.bids.length > 0 && (
+        <MyBids bids={mine.bids} currency={currency} decided={auction.status === 'completed'} />
+      )}
     </Panel>
   );
 }
@@ -324,9 +328,12 @@ export function BidPanel({
 function MyBids({
   bids: own,
   currency,
+  decided,
 }: {
   readonly bids: readonly BidDto[];
   readonly currency: AuctionDetailDto['terms']['currency'];
+  /** True once the auction has been decided, so the promise below is kept. */
+  readonly decided: boolean;
 }): React.JSX.Element {
   return (
     <div className="mt-4">
@@ -344,7 +351,15 @@ function MyBids({
             </li>
           ))}
       </ul>
-      <p className="mt-1 text-xs opacity-60">You will be told the result when the auction closes.</p>
+      {/*
+        Dropped once the auction is decided. Promising to tell somebody the
+        result *underneath* the panel that has just told them reads as though
+        the page does not know its own state — seen in a browser drive of a
+        completed auction, where both were on screen together.
+      */}
+      {!decided && (
+        <p className="mt-1 text-xs opacity-60">You will be told the result when the auction closes.</p>
+      )}
     </div>
   );
 }

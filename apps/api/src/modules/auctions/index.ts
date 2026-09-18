@@ -7,9 +7,9 @@
  * decides what an auction may do next.
  *
  * Phase 4 owns the lifecycle up to `closing`. Result calculation
- * (`closing → calculating → completed`) belongs to Phase 6; the transitions
- * are declared so that the service will enforce the same previous-state rules,
- * but nothing here performs them.
+ * (`closing → calculating → completed`) is driven by `modules/results`, but
+ * the two transitions themselves still live in `lifecycle.ts` and still
+ * consult the same table — the results module says *when*, never *how*.
  */
 export {
   createAuction,
@@ -32,7 +32,18 @@ export {
 } from './auctionService.js';
 export type { AuctionConfig, AuctionListResult } from './auctionService.js';
 
-export { approve, cancel, close, open, reject, resume, submitForApproval, suspend } from './lifecycle.js';
+export {
+  approve,
+  beginCalculating,
+  cancel,
+  close,
+  complete,
+  open,
+  reject,
+  resume,
+  submitForApproval,
+  suspend,
+} from './lifecycle.js';
 export type { OpenOutcome, TransitionResult } from './lifecycle.js';
 
 export {
@@ -72,6 +83,22 @@ export {
  * transition doing the same thing in the same order.
  */
 export { lockById as lockForBidding, addBidCounters } from './auctionRepository.js';
+
+/**
+ * What the results engine is allowed to do to an auction.
+ *
+ * Closing has to hold the auction row for the whole of its work — statistics,
+ * winner, order, inventory, status — so it needs the lock as a step of its own
+ * rather than folded into a transition. It is the same `SELECT ... FOR UPDATE`
+ * the lifecycle takes, under the name its caller needs, and it is still the
+ * **first** lock in the platform's order (auction → product → wallet): the
+ * order the closing transaction goes on to create takes the product next, and
+ * fee refunds take wallets afterwards, in their own transactions.
+ *
+ * The status change still belongs to `lifecycle.ts`. Holding the row does not
+ * let the caller write one.
+ */
+export { lockById as lockForClosing } from './auctionRepository.js';
 
 export { AUCTION_ERRORS } from './errors.js';
 export type { AuctionErrorCode } from './errors.js';

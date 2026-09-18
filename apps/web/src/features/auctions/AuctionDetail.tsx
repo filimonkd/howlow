@@ -3,6 +3,7 @@ import type { AuctionDetailDto } from '@howlow/shared';
 import * as api from '../../lib/catalog-api.js';
 import { Button, Notice, Panel } from '../../components/AuthForms.js';
 import { BidPanel } from '../bids/BidPanel.js';
+import { ResultPanel } from './ResultPanel.js';
 import { formatRemaining, money, StatusBadge } from './AuctionCard.js';
 
 /**
@@ -252,6 +253,18 @@ export function AuctionDetail({
           <li>The winner has {auction.terms.winnerPaymentHours} hours to pay.</li>
         </ol>
       </Panel>
+
+      {/*
+        Above the bidding controls, because on a closed auction the result is
+        what the page is *for* — and `ResultPanel` renders nothing at all until
+        an auction has one, so a running auction is unaffected.
+      */}
+      <ResultPanel
+        reference={reference}
+        status={auction.status}
+        viewerId={viewerId}
+        sessionSettled={sessionSettled}
+      />
 
       <BidPanel
         auction={auction}
